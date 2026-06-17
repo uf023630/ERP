@@ -1,0 +1,20 @@
+@model IReadOnlyList<SmartIMS.Web.Models.MenuGroupDefinition>
+
+<aside class="app-sidebar">
+    @foreach (var group in Model)
+    {
+        var groupId = "nav-" + Math.Abs(group.Text.GetHashCode()).ToString("x");
+        <div class="nav-group">
+            <button class="nav-group-title" type="button" data-bs-toggle="collapse" data-bs-target="#@groupId" aria-expanded="true">
+                <span>@group.Text</span>
+                <span class="nav-chevron">▾</span>
+            </button>
+            <div id="@groupId" class="collapse show">
+                @foreach (var item in group.Items)
+                {
+                    <a class="nav-page" asp-controller="@item.Controller" asp-action="@item.Action">@item.Text</a>
+                }
+            </div>
+        </div>
+    }
+</aside>

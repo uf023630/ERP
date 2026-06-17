@@ -1,0 +1,74 @@
+@model SmartIMS.Web.Models.ListViewModel
+@{
+    var orderedColumns = Model.Columns
+        .OrderBy(column => column.Order)
+        .ThenBy(column => column.Key)
+        .ToList();
+}
+
+<div class="listview-component" data-listview-key="@Model.ListKey">
+    @Html.AntiForgeryToken()
+    <div class="listview-toolbar">
+        <div class="section-caption listview-title">@Model.Title</div>
+        <button class="btn btn-sm btn-outline-secondary listview-settings-toggle" type="button" aria-expanded="false">
+            欄位設定
+        </button>
+    </div>
+
+    <div class="listview-settings-panel" hidden>
+        <div class="listview-settings-header">
+            <span>顯示欄位</span>
+            <button class="btn btn-sm btn-outline-secondary listview-reset" type="button">重設預設</button>
+        </div>
+        <div class="listview-column-options">
+            @foreach (var column in orderedColumns)
+            {
+                <label class="listview-column-option"
+                       draggable="true"
+                       data-col-key="@column.Key"
+                       data-width="@column.Width"
+                       data-default-width="@column.DefaultWidth">
+                    <span class="listview-drag-handle" aria-hidden="true">::</span>
+                    <input class="form-check-input listview-column-visible"
+                           type="checkbox"
+                           checked="@column.Visible" />
+                    <span>@column.Title</span>
+                </label>
+            }
+        </div>
+    </div>
+
+    <div class="listview-frame">
+        <table class="listview-table">
+            <thead>
+                <tr>
+                    @foreach (var column in orderedColumns)
+                    {
+                        <th class="@(column.Visible ? "" : "is-hidden")"
+                            data-col-key="@column.Key"
+                            draggable="true"
+                            style="width: @(column.Width)px; min-width: @(column.MinWidth)px;">
+                            <span class="listview-column-title">@column.Title</span>
+                            <span class="listview-resize-handle" aria-hidden="true"></span>
+                        </th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        @foreach (var column in orderedColumns)
+                        {
+                            <td class="@(column.Visible ? "" : "is-hidden")"
+                                data-col-key="@column.Key"
+                                style="width: @(column.Width)px; min-width: @(column.MinWidth)px;">
+                                @row.GetValue(column.Key)
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

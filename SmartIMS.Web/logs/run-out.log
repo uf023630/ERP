@@ -1,0 +1,9 @@
+Usage: dotnet [path-to-application]
+commands:
+  -h|--help                         Display help.
+path-to-application:
+Usage: dotnet [commands]
+  The path to an application .dll file to execute.
+  --list-runtimes [--arch <arch>]   Display the installed runtimes matching the host or specified architecture. Example architectures: arm64, x64, x86.
+  --info                            Display .NET information.
+  --list-sdks [--arch <arch>]       Display the installed SDKs matching the host or specified architecture. Example architectures: arm64, x64, x86.

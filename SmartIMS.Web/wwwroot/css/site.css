@@ -1,0 +1,471 @@
+html {
+  font-size: 14px;
+}
+
+body {
+  background: #dfe3e8;
+  color: #1f2933;
+  font-family: "Microsoft JhengHei", "Segoe UI", Arial, sans-serif;
+  letter-spacing: 0;
+}
+
+.btn,
+.form-control,
+.form-select,
+.alert,
+.card,
+.modal-content {
+  border-radius: 4px;
+}
+
+.form-control,
+.form-select {
+  border-color: #9aa6b2;
+}
+
+.form-label {
+  color: #243447;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+
+.app-header {
+  align-items: center;
+  background: #f8f9fb;
+  border-bottom: 1px solid #9aa6b2;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .12);
+  display: flex;
+  height: 48px;
+  justify-content: space-between;
+  left: 0;
+  padding: 0 10px;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 1000;
+}
+
+.brand-block,
+.header-actions,
+.branding-preview {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.brand-logo,
+.brand-logo-fallback {
+  height: 30px;
+  width: 30px;
+}
+
+.brand-logo,
+.login-logo,
+.preview-logo {
+  object-fit: contain;
+}
+
+.brand-logo-fallback,
+.login-logo-fallback,
+.preview-logo.fallback {
+  align-items: center;
+  background: #2f5f8f;
+  color: #fff;
+  display: flex;
+  font-weight: 700;
+  justify-content: center;
+}
+
+.brand-logo-fallback,
+.login-logo-fallback,
+.preview-logo.fallback {
+  border-radius: 4px;
+}
+
+.brand-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.header-user {
+  background: #fff;
+  border: 1px solid #b9c2cc;
+  padding: 3px 10px;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  padding-top: 48px;
+}
+
+.app-sidebar {
+  background: #eef1f4;
+  border-right: 1px solid #9aa6b2;
+  bottom: 0;
+  overflow-y: auto;
+  padding: 8px;
+  position: fixed;
+  top: 48px;
+  width: 220px;
+}
+
+.app-content {
+  margin-left: 220px;
+  padding: 10px;
+  width: calc(100% - 220px);
+}
+
+.content-frame,
+.win-panel {
+  background: #f8fafc;
+  border: 1px solid #aab4bf;
+  box-shadow: inset 0 1px 0 #fff;
+}
+
+.content-frame {
+  min-height: calc(100vh - 68px);
+  padding: 10px;
+}
+
+.nav-group {
+  border: 1px solid #b8c2cc;
+  margin-bottom: 6px;
+}
+
+.nav-group-title {
+  align-items: center;
+  background: #d8dde4;
+  border: 0;
+  color: #1f2933;
+  display: flex;
+  font-weight: 700;
+  justify-content: space-between;
+  padding: 6px 8px;
+  width: 100%;
+}
+
+.nav-page {
+  background: #f8fafc;
+  border-top: 1px solid #d5dbe3;
+  color: #243447;
+  display: block;
+  padding: 6px 10px 6px 22px;
+  text-decoration: none;
+}
+
+.nav-page:hover {
+  background: #e8f0f8;
+  color: #111827;
+}
+
+.page-title-row {
+  align-items: center;
+  border-bottom: 1px solid #c1cad4;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+}
+
+.page-title-row h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.win-panel {
+  padding: 8px;
+}
+
+.narrow-panel {
+  max-width: 560px;
+}
+
+.section-caption {
+  background: #e2e7ed;
+  border: 1px solid #b8c2cc;
+  font-weight: 700;
+  margin-bottom: 8px;
+  padding: 4px 6px;
+}
+
+.win-table {
+  background: #fff;
+  font-size: 13px;
+  margin-bottom: 0;
+}
+
+.win-table thead th {
+  background: #dce2e8;
+  border-color: #aab4bf;
+  color: #1f2933;
+  font-weight: 700;
+}
+
+.win-table td {
+  border-color: #c8d0d8;
+}
+
+.permission-summary {
+  max-width: 360px;
+}
+
+.metric-box {
+  background: #fff;
+  border: 1px solid #b8c2cc;
+  padding: 10px;
+}
+
+.metric-label {
+  color: #526170;
+  font-size: 12px;
+}
+
+.metric-value {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.login-body {
+  background: #cfd6dd;
+}
+
+.login-shell {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) 420px;
+  min-height: 100vh;
+}
+
+.login-hero {
+  background: linear-gradient(135deg, #586575, #c8d0d8);
+  background-position: center;
+  background-size: cover;
+  position: relative;
+}
+
+.login-hero-overlay {
+  background: rgba(31, 41, 51, .72);
+  bottom: 0;
+  color: #fff;
+  left: 0;
+  padding: 20px;
+  position: absolute;
+  right: 0;
+}
+
+.login-hero-title {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.login-hero-subtitle {
+  color: #d8e0e8;
+  font-size: 13px;
+}
+
+.login-panel {
+  align-items: center;
+  background: #eef1f4;
+  border-left: 1px solid #9aa6b2;
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  background: #f8fafc;
+  border: 1px solid #9aa6b2;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .16);
+  padding: 18px;
+  width: 100%;
+}
+
+.login-logo,
+.login-logo-fallback {
+  height: 48px;
+  margin-bottom: 10px;
+  width: 48px;
+}
+
+.login-card h1 {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.login-card p {
+  color: #526170;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.compact-form {
+  font-size: 13px;
+}
+
+.preview-logo {
+  height: 44px;
+  width: 44px;
+}
+
+.preview-hero {
+  align-items: center;
+  background: #d8dde4;
+  background-position: center;
+  background-size: cover;
+  border: 1px solid #aab4bf;
+  color: #526170;
+  display: flex;
+  height: 180px;
+  justify-content: center;
+}
+
+.component-test-result {
+  background: #ffffff;
+  border: 1px solid #b8c2cc;
+  min-height: 28px;
+  padding: 5px 8px;
+}
+
+.listview-component {
+  font-size: 13px;
+}
+
+.listview-toolbar,
+.listview-settings-header {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.listview-title {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.listview-settings-panel {
+  background: #eef2f6;
+  border: 1px solid #b8c2cc;
+  margin-bottom: 8px;
+  padding: 8px;
+}
+
+.listview-settings-header {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.listview-column-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.listview-column-option {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #b8c2cc;
+  cursor: move;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 28px;
+  padding: 3px 8px;
+  user-select: none;
+}
+
+.listview-column-option.is-dragging {
+  opacity: .55;
+}
+
+.listview-drag-handle {
+  color: #6b7785;
+  font-family: Consolas, monospace;
+}
+
+.listview-frame {
+  background: #ffffff;
+  border: 1px solid #aab4bf;
+  overflow-x: auto;
+}
+
+.listview-table {
+  border-collapse: collapse;
+  margin-bottom: 0;
+  min-width: 100%;
+  table-layout: fixed;
+}
+
+.listview-table th {
+  background: #dce2e8;
+  border-bottom: 1px solid #aab4bf;
+  color: #1f2933;
+  cursor: move;
+  font-weight: 700;
+  position: relative;
+}
+
+.listview-table th,
+.listview-table td {
+  border-right: 1px solid #c8d0d8;
+  overflow: hidden;
+  padding: 6px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listview-table tbody tr {
+  border-bottom: 1px solid #c8d0d8;
+}
+
+.listview-table tbody tr:nth-child(odd) {
+  background: #f8fafc;
+}
+
+.listview-table .is-hidden {
+  display: none;
+}
+
+.listview-resize-handle {
+  bottom: 0;
+  cursor: col-resize;
+  position: absolute;
+  right: -3px;
+  top: 0;
+  width: 7px;
+  z-index: 1;
+}
+
+.listview-resize-handle:hover {
+  background: rgba(47, 95, 143, .18);
+}
+
+.listview-status {
+  background: #fff3cd;
+  border: 1px solid #e0c36a;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+}
+
+@media (max-width: 900px) {
+  .login-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .login-hero {
+    min-height: 220px;
+  }
+
+  .app-sidebar {
+    position: static;
+    width: 100%;
+  }
+
+  .app-shell {
+    display: block;
+  }
+
+  .app-content {
+    margin-left: 0;
+    width: 100%;
+  }
+}

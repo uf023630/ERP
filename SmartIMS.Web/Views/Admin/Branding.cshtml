@@ -1,0 +1,74 @@
+@model SmartIMS.Web.ViewModels.BrandingViewModel
+@{
+    ViewData["Title"] = "公司形象";
+}
+
+<div class="page-title-row">
+    <h1>公司形象</h1>
+</div>
+
+<div class="row g-2">
+    <div class="col-lg-6">
+        <div class="win-panel">
+            <form asp-action="Branding" method="post" enctype="multipart/form-data" class="compact-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="CompanyLogoPath" />
+                <input type="hidden" asp-for="LoginHeroImagePath" />
+                <div class="mb-2">
+                    <label asp-for="CompanyName" class="form-label"></label>
+                    <input asp-for="CompanyName" class="form-control form-control-sm" />
+                    <span asp-validation-for="CompanyName" class="text-danger small"></span>
+                </div>
+                <div class="mb-2">
+                    <label asp-for="LoginTitle" class="form-label"></label>
+                    <input asp-for="LoginTitle" class="form-control form-control-sm" />
+                    <span asp-validation-for="LoginTitle" class="text-danger small"></span>
+                </div>
+                <div class="mb-2">
+                    <label asp-for="LoginSubtitle" class="form-label"></label>
+                    <input asp-for="LoginSubtitle" class="form-control form-control-sm" />
+                    <span asp-validation-for="LoginSubtitle" class="text-danger small"></span>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">公司 Logo</label>
+                    <input name="companyLogo" type="file" class="form-control form-control-sm" accept="image/*" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">登入形象圖</label>
+                    <input name="loginHeroImage" type="file" class="form-control form-control-sm" accept="image/*" />
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary">儲存</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="win-panel">
+            <div class="section-caption">預覽</div>
+            <div class="branding-preview">
+                @if (!string.IsNullOrWhiteSpace(Model.CompanyLogoPath))
+                {
+                    <img class="preview-logo" src="@Model.CompanyLogoPath" alt="@Model.CompanyName" />
+                }
+                else
+                {
+                    <div class="preview-logo fallback">S</div>
+                }
+                <div>
+                    <div class="fw-semibold">@Model.CompanyName</div>
+                    <div class="small text-muted">@Model.LoginTitle</div>
+                    <div class="small">@Model.LoginSubtitle</div>
+                </div>
+            </div>
+            <div class="preview-hero mt-2" style="@(string.IsNullOrWhiteSpace(Model.LoginHeroImagePath) ? "" : $"background-image: url('{Model.LoginHeroImagePath}');")">
+                @if (string.IsNullOrWhiteSpace(Model.LoginHeroImagePath))
+                {
+                    <span>尚未設定登入形象圖</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

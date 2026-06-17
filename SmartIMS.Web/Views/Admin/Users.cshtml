@@ -1,0 +1,65 @@
+@model SmartIMS.Web.ViewModels.AdminUserListViewModel
+@{
+    ViewData["Title"] = "使用者管理";
+}
+
+<div class="page-title-row">
+    <h1>使用者管理</h1>
+    <a class="btn btn-sm btn-primary" asp-action="CreateUser">新增使用者</a>
+</div>
+
+<div class="win-panel">
+    <table class="table table-sm table-bordered win-table align-middle">
+        <thead>
+            <tr>
+                <th>帳號</th>
+                <th>顯示名稱</th>
+                <th>部門</th>
+                <th>Email</th>
+                <th>狀態</th>
+                <th>權限摘要</th>
+                <th class="text-end">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in Model.Users)
+            {
+                <tr>
+                    <td>@user.UserName</td>
+                    <td>@user.DisplayName</td>
+                    <td>@user.Department</td>
+                    <td>@user.Email</td>
+                    <td>@(user.IsActive ? "啟用" : "停用")</td>
+                    <td class="text-truncate permission-summary">@user.PermissionNames</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-secondary" asp-action="EditUser" asp-route-id="@user.AppUserId">編輯</a>
+                        <a class="btn btn-sm btn-outline-secondary" asp-action="Permissions" asp-route-userId="@user.AppUserId">權限</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<div class="win-panel mt-2">
+    <div class="section-caption">重設密碼</div>
+    <form asp-action="ResetPassword" method="post" class="row g-2 align-items-end compact-form">
+        @Html.AntiForgeryToken()
+        <div class="col-md-4">
+            <label class="form-label">使用者</label>
+            <select name="id" class="form-select form-select-sm">
+                @foreach (var user in Model.Users)
+                {
+                    <option value="@user.AppUserId">@user.UserName - @user.DisplayName</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">新密碼</label>
+            <input name="password" type="password" class="form-control form-control-sm" minlength="8" />
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-sm btn-outline-danger">重設</button>
+        </div>
+    </form>
+</div>

@@ -1,0 +1,53 @@
+@model SmartIMS.Web.ViewModels.UserPermissionEditViewModel
+@{
+    ViewData["Title"] = "權限設定";
+}
+
+<div class="page-title-row">
+    <h1>權限設定</h1>
+</div>
+
+<div class="win-panel mb-2">
+    <div class="row g-2 align-items-end compact-form">
+        <div class="col-md-4">
+            <label class="form-label">目前使用者</label>
+            <input class="form-control form-control-sm" value="@Model.UserName - @Model.DisplayName" readonly />
+        </div>
+        <div class="col-md-2">
+            <a class="btn btn-sm btn-outline-secondary" asp-action="Users">選擇使用者</a>
+        </div>
+    </div>
+</div>
+
+<div class="win-panel">
+    <form asp-action="SavePermissions" method="post">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="appUserId" value="@Model.AppUserId" />
+        <table class="table table-sm table-bordered win-table align-middle">
+            <thead>
+                <tr>
+                    <th style="width: 42px;">使用</th>
+                    <th>權限代碼</th>
+                    <th>名稱</th>
+                    <th>模組</th>
+                    <th>說明</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var permission in Model.Permissions)
+                {
+                    <tr>
+                        <td class="text-center">
+                            <input class="form-check-input" type="checkbox" name="permissionIds" value="@permission.PermissionId" checked="@Model.SelectedPermissionIds.Contains(permission.PermissionId)" />
+                        </td>
+                        <td><code>@permission.PermissionCode</code></td>
+                        <td>@permission.PermissionName</td>
+                        <td>@permission.ModuleCode / @permission.ActionCode</td>
+                        <td>@permission.Description</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <button type="submit" class="btn btn-sm btn-primary">儲存權限</button>
+    </form>
+</div>

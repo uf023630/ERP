@@ -1,0 +1,32 @@
+@model SmartIMS.Web.ViewModels.ComponentTestViewModel
+@{
+    ViewData["Title"] = "元件測試頁面";
+}
+
+<div class="page-title-row">
+    <h1>元件測試頁面</h1>
+</div>
+
+<div class="win-panel mb-2">
+    <div class="section-caption">基本元件測試</div>
+    <form method="get" class="compact-form">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label" for="sampleText">Textbox</label>
+                <input id="sampleText" name="sampleText" class="form-control form-control-sm" value="@Model.SampleText" />
+            </div>
+            <div class="col-md-2">
+                <button type="button" class="btn btn-sm btn-primary" onclick="document.getElementById('componentTestResult').textContent = 'Button 測試結果：' + document.getElementById('sampleText').value;">
+                    Button 測試
+                </button>
+            </div>
+            <div class="col-md-5">
+                <div id="componentTestResult" class="component-test-result">請點擊 Button 測試</div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="win-panel">
+    <partial name="_ListView" model="Model.ListView" />
+</div>

@@ -1,0 +1,48 @@
+@model SmartIMS.Web.ViewModels.LoginViewModel
+@{
+    Layout = "_LoginLayout";
+    ViewData["Title"] = Model.Branding.LoginTitle;
+}
+
+<div class="login-shell">
+    <section class="login-hero" style="@(string.IsNullOrWhiteSpace(Model.Branding.LoginHeroImagePath) ? "" : $"background-image: url('{Model.Branding.LoginHeroImagePath}');")">
+        <div class="login-hero-overlay">
+            <div class="login-hero-title">@Model.Branding.CompanyName</div>
+            <div class="login-hero-subtitle">Inventory / Sales / Purchasing</div>
+        </div>
+    </section>
+    <section class="login-panel">
+        <div class="login-card">
+            @if (!string.IsNullOrWhiteSpace(Model.Branding.CompanyLogoPath))
+            {
+                <img class="login-logo" src="@Model.Branding.CompanyLogoPath" alt="@Model.Branding.CompanyName" />
+            }
+            else
+            {
+                <div class="login-logo-fallback">S</div>
+            }
+            <h1>@Model.Branding.LoginTitle</h1>
+            <p>@Model.Branding.LoginSubtitle</p>
+            <form asp-action="Login" method="post" class="compact-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" asp-for="ReturnUrl" />
+                <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+                <div class="mb-2">
+                    <label asp-for="UserName" class="form-label"></label>
+                    <input asp-for="UserName" class="form-control form-control-sm" autocomplete="username" autofocus />
+                    <span asp-validation-for="UserName" class="text-danger small"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="Password" class="form-label"></label>
+                    <input asp-for="Password" class="form-control form-control-sm" autocomplete="current-password" />
+                    <span asp-validation-for="Password" class="text-danger small"></span>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm w-100">登入</button>
+            </form>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

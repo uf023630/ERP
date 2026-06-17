@@ -1,0 +1,51 @@
+@model SmartIMS.Web.ViewModels.AdminUserEditViewModel
+@{
+    ViewData["Title"] = Model.AppUserId is null ? "新增使用者" : "編輯使用者";
+}
+
+<div class="page-title-row">
+    <h1>@ViewData["Title"]</h1>
+    <a class="btn btn-sm btn-outline-secondary" asp-action="Users">返回</a>
+</div>
+
+<div class="win-panel narrow-panel">
+    <form asp-action="SaveUser" method="post" class="compact-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="AppUserId" />
+        <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+        <div class="mb-2">
+            <label asp-for="UserName" class="form-label"></label>
+            <input asp-for="UserName" class="form-control form-control-sm" readonly="@(Model.AppUserId is not null)" />
+            <span asp-validation-for="UserName" class="text-danger small"></span>
+        </div>
+        <div class="mb-2">
+            <label asp-for="DisplayName" class="form-label"></label>
+            <input asp-for="DisplayName" class="form-control form-control-sm" />
+            <span asp-validation-for="DisplayName" class="text-danger small"></span>
+        </div>
+        <div class="mb-2">
+            <label asp-for="Department" class="form-label"></label>
+            <input asp-for="Department" class="form-control form-control-sm" />
+        </div>
+        <div class="mb-2">
+            <label asp-for="Email" class="form-label"></label>
+            <input asp-for="Email" class="form-control form-control-sm" />
+            <span asp-validation-for="Email" class="text-danger small"></span>
+        </div>
+        <div class="mb-2">
+            <label asp-for="Password" class="form-label"></label>
+            <input asp-for="Password" class="form-control form-control-sm" />
+            <span asp-validation-for="Password" class="text-danger small"></span>
+            <div class="form-text">編輯時留空代表不變更密碼。</div>
+        </div>
+        <div class="form-check mb-3">
+            <input asp-for="IsActive" class="form-check-input" />
+            <label asp-for="IsActive" class="form-check-label"></label>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary">儲存</button>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
