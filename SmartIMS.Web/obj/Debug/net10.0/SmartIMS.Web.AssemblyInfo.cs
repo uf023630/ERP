@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SmartIMS.Web")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0f55fd68a3cfed08c004b25039e0aff377aa5051")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e360a0a8b44e3edba50cd03cde0fe3d7f41e7430")]
 [assembly: System.Reflection.AssemblyProductAttribute("SmartIMS.Web")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SmartIMS.Web")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

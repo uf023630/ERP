@@ -1,0 +1,371 @@
+@{
+    ViewData["Title"] = "客戶資料管理";
+    ViewData["ToolbarPageCode"] = "PAGE_COMPONENT_TEST";
+    ViewData["ToolbarActions"] = "create,delete,copy,edit,cancel,find,print,first,previous,next,last";
+}
+
+<div class="page-title-row">
+    <h1>客戶資料管理</h1>
+    <span class="text-muted small">Layout 測試資料，不連接資料庫</span>
+</div>
+
+<div class="customer-layout-test" data-customer-layout-test>
+    <div class="win-panel mb-2">
+        <div class="section-caption">客戶明細</div>
+        <form id="customerForm" class="compact-form customer-detail-form">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label" for="owner">負責人</label>
+                    <input id="owner" name="owner" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="contact">聯絡人</label>
+                    <input id="contact" name="contact" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="phone">電話</label>
+                    <input id="phone" name="phone" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="fax">傳真</label>
+                    <input id="fax" name="fax" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="email">Email</label>
+                    <input id="email" name="email" class="form-control form-control-sm" type="email" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="line">LINE</label>
+                    <input id="line" name="line" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="taxId">統一編號</label>
+                    <input id="taxId" name="taxId" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="zipCode">郵遞區號</label>
+                    <input id="zipCode" name="zipCode" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="deliveryAddress">送貨地址</label>
+                    <input id="deliveryAddress" name="deliveryAddress" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="paymentMethod">預設付款方式</label>
+                    <select id="paymentMethod" name="paymentMethod" class="form-select form-select-sm">
+                        <option value="月結">月結</option>
+                        <option value="現金">現金</option>
+                        <option value="匯款">匯款</option>
+                        <option value="票據">票據</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="bankAccount">銀行帳號</label>
+                    <input id="bankAccount" name="bankAccount" class="form-control form-control-sm" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="note">備註</label>
+                    <textarea id="note" name="note" class="form-control form-control-sm" rows="3"></textarea>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="win-panel">
+        <div class="section-caption">客戶清單</div>
+        <div class="customer-list-tools">
+            <input id="customerSearch" class="form-control form-control-sm" type="search" placeholder="輸入負責人、聯絡人、電話、統一編號或地址尋找" />
+            <span class="customer-layout-status" data-customer-status></span>
+        </div>
+        <div class="listview-frame customer-list-frame">
+            <table class="listview-table customer-list-table">
+                <thead>
+                    <tr>
+                        <th style="width: 150px;">負責人</th>
+                        <th style="width: 130px;">聯絡人</th>
+                        <th style="width: 130px;">電話</th>
+                        <th style="width: 130px;">Email</th>
+                        <th style="width: 120px;">LINE</th>
+                        <th style="width: 120px;">統一編號</th>
+                        <th style="width: 220px;">送貨地址</th>
+                        <th style="width: 130px;">預設付款方式</th>
+                    </tr>
+                </thead>
+                <tbody id="customerRows"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var customers = [
+                {
+                    owner: "宏達五金行",
+                    contact: "林志明",
+                    phone: "02-2399-1200",
+                    fax: "02-2399-1201",
+                    email: "sales@hongda.example",
+                    line: "hongda-sales",
+                    taxId: "24581234",
+                    zipCode: "100",
+                    deliveryAddress: "台北市中正區重慶南路一段 10 號",
+                    paymentMethod: "月結",
+                    bankAccount: "808-1234567890",
+                    note: "每週二固定配送。"
+                },
+                {
+                    owner: "東海食品有限公司",
+                    contact: "陳怡君",
+                    phone: "04-2258-3300",
+                    fax: "04-2258-3301",
+                    email: "contact@donghai.example",
+                    line: "donghai-food",
+                    taxId: "53770019",
+                    zipCode: "407",
+                    deliveryAddress: "台中市西屯區市政北二路 88 號",
+                    paymentMethod: "匯款",
+                    bankAccount: "012-5566778899",
+                    note: "需附發票與出貨明細。"
+                },
+                {
+                    owner: "南港材料行",
+                    contact: "王建宏",
+                    phone: "02-2786-5018",
+                    fax: "02-2786-5019",
+                    email: "order@nangang.example",
+                    line: "nangang-order",
+                    taxId: "80126655",
+                    zipCode: "115",
+                    deliveryAddress: "台北市南港區園區街 3 號",
+                    paymentMethod: "票據",
+                    bankAccount: "700-9911223344",
+                    note: "月底對帳。"
+                }
+            ];
+
+            var selectedIndex = 0;
+            var filteredIndexes = customers.map(function (_, index) { return index; });
+            var root = document.querySelector("[data-customer-layout-test]");
+            var tableBody = document.getElementById("customerRows");
+            var form = document.getElementById("customerForm");
+            var search = document.getElementById("customerSearch");
+            var status = root.querySelector("[data-customer-status]");
+            var fields = ["owner", "contact", "phone", "fax", "email", "line", "taxId", "zipCode", "deliveryAddress", "paymentMethod", "bankAccount", "note"];
+
+            function renderRows() {
+                tableBody.innerHTML = "";
+                filteredIndexes.forEach(function (customerIndex) {
+                    var customer = customers[customerIndex];
+                    var row = document.createElement("tr");
+                    row.dataset.customerIndex = String(customerIndex);
+                    row.className = customerIndex === selectedIndex ? "is-selected" : "";
+                    row.innerHTML =
+                        "<td>" + escapeHtml(customer.owner) + "</td>" +
+                        "<td>" + escapeHtml(customer.contact) + "</td>" +
+                        "<td>" + escapeHtml(customer.phone) + "</td>" +
+                        "<td>" + escapeHtml(customer.email) + "</td>" +
+                        "<td>" + escapeHtml(customer.line) + "</td>" +
+                        "<td>" + escapeHtml(customer.taxId) + "</td>" +
+                        "<td>" + escapeHtml(customer.deliveryAddress) + "</td>" +
+                        "<td>" + escapeHtml(customer.paymentMethod) + "</td>";
+                    row.addEventListener("click", function () {
+                        selectCustomer(customerIndex);
+                    });
+                    tableBody.appendChild(row);
+                });
+                setStatus("共 " + filteredIndexes.length + " 筆");
+            }
+
+            function selectCustomer(index) {
+                if (index < 0 || index >= customers.length) {
+                    clearForm();
+                    return;
+                }
+                selectedIndex = index;
+                fillForm(customers[selectedIndex]);
+                renderRows();
+            }
+
+            function fillForm(customer) {
+                fields.forEach(function (field) {
+                    form.elements[field].value = customer[field] || "";
+                });
+            }
+
+            function clearForm() {
+                fields.forEach(function (field) {
+                    form.elements[field].value = "";
+                });
+                form.elements.owner.focus();
+            }
+
+            function collectForm() {
+                var customer = {};
+                fields.forEach(function (field) {
+                    customer[field] = form.elements[field].value.trim();
+                });
+                return customer;
+            }
+
+            function createCustomer() {
+                clearForm();
+                selectedIndex = -1;
+                setStatus("新增模式，輸入資料後按修改圖示儲存到清單");
+            }
+
+            function copyCustomer() {
+                if (selectedIndex < 0 || customers.length === 0) {
+                    setStatus("沒有可複製的客戶");
+                    return;
+                }
+                var source = customers[selectedIndex];
+                fillForm(Object.assign({}, source, {
+                    owner: source.owner + " 複本",
+                    taxId: ""
+                }));
+                selectedIndex = -1;
+                renderRows();
+                form.elements.owner.focus();
+                setStatus("已複製目前客戶，按修改圖示儲存成新資料");
+            }
+
+            function saveCustomer() {
+                var customer = collectForm();
+                if (!customer.owner) {
+                    form.elements.owner.focus();
+                    setStatus("負責人不可空白");
+                    return;
+                }
+                if (selectedIndex >= 0) {
+                    customers[selectedIndex] = customer;
+                    setStatus("已修改目前客戶");
+                } else {
+                    customers.push(customer);
+                    selectedIndex = customers.length - 1;
+                    setStatus("已新增客戶");
+                }
+                applyFilter();
+                selectCustomer(selectedIndex);
+            }
+
+            function deleteCustomer() {
+                if (selectedIndex < 0 || customers.length === 0) {
+                    setStatus("沒有可刪除的客戶");
+                    return;
+                }
+                customers.splice(selectedIndex, 1);
+                selectedIndex = Math.min(selectedIndex, customers.length - 1);
+                applyFilter();
+                if (customers.length > 0) {
+                    selectCustomer(filteredIndexes[0] ?? selectedIndex);
+                } else {
+                    clearForm();
+                    renderRows();
+                }
+                setStatus("已刪除客戶");
+            }
+
+            function cancelEdit() {
+                if (selectedIndex >= 0 && customers[selectedIndex]) {
+                    fillForm(customers[selectedIndex]);
+                    setStatus("已取消編輯並還原目前客戶");
+                } else if (filteredIndexes.length > 0) {
+                    selectCustomer(filteredIndexes[0]);
+                    setStatus("已取消新增");
+                } else {
+                    clearForm();
+                    setStatus("已取消");
+                }
+            }
+
+            function applyFilter() {
+                var keyword = search.value.trim().toLowerCase();
+                filteredIndexes = customers
+                    .map(function (_, index) { return index; })
+                    .filter(function (index) {
+                        if (!keyword) {
+                            return true;
+                        }
+                        return fields.some(function (field) {
+                            return String(customers[index][field] || "").toLowerCase().indexOf(keyword) >= 0;
+                        });
+                    });
+                if (filteredIndexes.indexOf(selectedIndex) < 0) {
+                    selectedIndex = filteredIndexes.length > 0 ? filteredIndexes[0] : -1;
+                }
+                renderRows();
+            }
+
+            function moveSelection(action) {
+                if (filteredIndexes.length === 0) {
+                    selectedIndex = -1;
+                    clearForm();
+                    setStatus("沒有符合條件的客戶");
+                    return;
+                }
+                var position = filteredIndexes.indexOf(selectedIndex);
+                if (position < 0) {
+                    position = 0;
+                }
+                if (action === "first") {
+                    position = 0;
+                } else if (action === "previous") {
+                    position = Math.max(0, position - 1);
+                } else if (action === "next") {
+                    position = Math.min(filteredIndexes.length - 1, position + 1);
+                } else if (action === "last") {
+                    position = filteredIndexes.length - 1;
+                }
+                selectCustomer(filteredIndexes[position]);
+                setStatus((position + 1) + "/" + filteredIndexes.length);
+            }
+
+            function setStatus(message) {
+                status.textContent = message;
+            }
+
+            function escapeHtml(value) {
+                return String(value || "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
+            document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                var action = event.detail.action;
+                if (action === "create") {
+                    event.preventDefault();
+                    createCustomer();
+                } else if (action === "edit") {
+                    event.preventDefault();
+                    saveCustomer();
+                } else if (action === "copy") {
+                    event.preventDefault();
+                    copyCustomer();
+                } else if (action === "cancel") {
+                    event.preventDefault();
+                    cancelEdit();
+                } else if (action === "delete") {
+                    event.preventDefault();
+                    deleteCustomer();
+                } else if (action === "find") {
+                    event.preventDefault();
+                    search.focus();
+                    search.select();
+                    applyFilter();
+                } else if (["first", "previous", "next", "last"].indexOf(action) >= 0) {
+                    event.preventDefault();
+                    moveSelection(action);
+                }
+            });
+
+            search.addEventListener("input", applyFilter);
+            renderRows();
+            selectCustomer(0);
+        })();
+    </script>
+}

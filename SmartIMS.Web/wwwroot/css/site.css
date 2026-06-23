@@ -646,6 +646,37 @@ body {
   padding: 5px 8px;
 }
 
+.customer-layout-test {
+  display: grid;
+  gap: 8px;
+}
+
+.customer-list-tools {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(240px, 420px) 1fr;
+  margin-bottom: 8px;
+}
+
+.customer-layout-status {
+  color: var(--app-muted);
+  font-size: 12px;
+}
+
+.customer-list-frame {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.customer-list-table tbody tr {
+  cursor: pointer;
+}
+
+.customer-detail-form textarea {
+  resize: vertical;
+}
+
 .listview-component {
   font-size: 13px;
 }

@@ -50,8 +50,14 @@
             <symbol id="toolbar-icon-delete" viewBox="0 0 24 24">
                 <path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3" />
             </symbol>
+            <symbol id="toolbar-icon-copy" viewBox="0 0 24 24">
+                <path d="M8 8h11v11H8zM5 16H4V4h12v1" />
+            </symbol>
             <symbol id="toolbar-icon-edit" viewBox="0 0 24 24">
                 <path d="M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4" />
+            </symbol>
+            <symbol id="toolbar-icon-cancel" viewBox="0 0 24 24">
+                <path d="M18 6 6 18M6 6l12 12" />
             </symbol>
             <symbol id="toolbar-icon-find" viewBox="0 0 24 24">
                 <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15zM16 16l5 5" />
@@ -75,7 +81,9 @@
         <div class="app-toolbar-group">
             <button class="app-toolbar-button" type="button" data-toolbar-action="create" data-permission-suffix="CREATE" title="新增" aria-label="新增" disabled><svg><use href="#toolbar-icon-create"></use></svg></button>
             <button class="app-toolbar-button" type="button" data-toolbar-action="delete" data-permission-suffix="DELETE" title="刪除" aria-label="刪除" disabled><svg><use href="#toolbar-icon-delete"></use></svg></button>
+            <button class="app-toolbar-button" type="button" data-toolbar-action="copy" data-permission-suffix="COPY" title="複製" aria-label="複製" disabled><svg><use href="#toolbar-icon-copy"></use></svg></button>
             <button class="app-toolbar-button" type="button" data-toolbar-action="edit" data-permission-suffix="EDIT" title="修改" aria-label="修改" disabled><svg><use href="#toolbar-icon-edit"></use></svg></button>
+            <button class="app-toolbar-button" type="button" data-toolbar-action="cancel" data-permission-suffix="CANCEL" title="取消" aria-label="取消" disabled><svg><use href="#toolbar-icon-cancel"></use></svg></button>
             <button class="app-toolbar-button" type="button" data-toolbar-action="find" data-permission-suffix="FIND" title="尋找" aria-label="尋找" disabled><svg><use href="#toolbar-icon-find"></use></svg></button>
             <button class="app-toolbar-button" type="button" data-toolbar-action="print" data-permission-suffix="PRINT" title="列印" aria-label="列印" disabled><svg><use href="#toolbar-icon-print"></use></svg></button>
         </div>

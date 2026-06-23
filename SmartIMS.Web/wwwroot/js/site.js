@@ -6,7 +6,9 @@
   var actionLabels = {
     create: "新增",
     delete: "刪除",
+    copy: "複製",
     edit: "修改",
+    cancel: "取消",
     find: "尋找",
     print: "列印",
     first: "第一筆",
