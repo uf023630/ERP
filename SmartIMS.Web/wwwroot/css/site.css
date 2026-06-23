@@ -647,13 +647,15 @@ body {
 }
 
 .customer-layout-test,
-.product-layout-test {
+.product-layout-test,
+.material-layout-test {
   display: grid;
   gap: 8px;
 }
 
 .customer-list-tools,
-.product-list-tools {
+.product-list-tools,
+.material-list-tools {
   align-items: center;
   display: grid;
   gap: 8px;
@@ -662,19 +664,22 @@ body {
 }
 
 .customer-layout-status,
-.product-layout-status {
+.product-layout-status,
+.material-layout-status {
   color: var(--app-muted);
   font-size: 12px;
 }
 
 .customer-list-frame,
-.product-list-frame {
+.product-list-frame,
+.material-layout-test .listview-frame {
   max-height: 260px;
   overflow: auto;
 }
 
 .customer-list-table tbody tr,
-.product-list-table tbody tr {
+.product-list-table tbody tr,
+.material-layout-test .listview-table tbody tr {
   cursor: pointer;
 }
 

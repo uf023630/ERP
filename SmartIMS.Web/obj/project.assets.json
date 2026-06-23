@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "targets": {
     "net10.0": {
       "Microsoft.Bcl.Cryptography/9.0.13": {
@@ -772,23 +772,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\iktwadmin\\.nuget\\packages\\": {},
+    "C:\\Users\\ciapo\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "E:\\新版進銷存系統\\SmartIMS.Web\\SmartIMS.Web.csproj",
+      "projectUniqueName": "C:\\Users\\ciapo\\Documents\\Codex\\2026-06-22\\git-git\\ERP\\SmartIMS.Web\\SmartIMS.Web.csproj",
       "projectName": "SmartIMS.Web",
-      "projectPath": "E:\\新版進銷存系統\\SmartIMS.Web\\SmartIMS.Web.csproj",
-      "packagesPath": "C:\\Users\\iktwadmin\\.nuget\\packages\\",
-      "outputPath": "E:\\新版進銷存系統\\SmartIMS.Web\\obj\\",
+      "projectPath": "C:\\Users\\ciapo\\Documents\\Codex\\2026-06-22\\git-git\\ERP\\SmartIMS.Web\\SmartIMS.Web.csproj",
+      "packagesPath": "C:\\Users\\ciapo\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\ciapo\\Documents\\Codex\\2026-06-22\\git-git\\ERP\\SmartIMS.Web\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\iktwadmin\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\ciapo\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -797,10 +797,12 @@
       ],
       "sources": {
         "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+        "C:\\Program Files\\dotnet\\library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net10.0": {
+          "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {}
         }
@@ -815,10 +817,11 @@
         "auditLevel": "low",
         "auditMode": "all"
       },
-      "SdkAnalysisLevel": "10.0.100"
+      "SdkAnalysisLevel": "10.0.300"
     },
     "frameworks": {
       "net10.0": {
+        "framework": "net10.0",
         "targetAlias": "net10.0",
         "dependencies": {
           "Microsoft.Data.SqlClient": {
@@ -845,7 +848,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.102/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.301/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.AspNetCore": "(,10.0.32767]",
           "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",

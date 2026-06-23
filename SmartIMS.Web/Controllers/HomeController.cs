@@ -50,6 +50,19 @@ public class HomeController : Controller
         return View();
     }
 
+    [RequirePermission("PAGE_COMPONENT_TEST")]
+    public async Task<IActionResult> MaterialLayoutTest()
+    {
+        var model = MaterialLayoutTestViewModel.Create();
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (long.TryParse(userIdValue, out var appUserId))
+        {
+            await _listViewSettingsService.ApplySettingsAsync(appUserId, model.ListView);
+        }
+
+        return View(model);
+    }
+
     public IActionResult Privacy()
     {
         return View();

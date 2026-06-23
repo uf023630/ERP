@@ -1,0 +1,306 @@
+@model SmartIMS.Web.ViewModels.MaterialLayoutTestViewModel
+@{
+    ViewData["Title"] = "商品材質管理";
+    ViewData["ToolbarPageCode"] = "PAGE_COMPONENT_TEST";
+    ViewData["ToolbarActions"] = "create,delete,copy,edit,cancel,find,print,first,previous,next,last";
+}
+
+<div class="page-title-row">
+    <h1>商品材質管理</h1>
+    <span class="text-muted small">Layout 測試資料，不連接資料庫</span>
+</div>
+
+<div class="material-layout-test" data-material-layout-test>
+    <div class="win-panel mb-2">
+        <div class="section-caption">材質明細</div>
+        <form id="materialForm" class="compact-form material-detail-form">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label" for="materialCode">材質編碼</label>
+                    <input id="materialCode" name="MaterialCode" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label" for="materialName">材質名稱</label>
+                    <input id="materialName" name="MaterialName" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-4">
+                    <div class="material-layout-status" data-material-status></div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="win-panel">
+        <div class="material-list-tools">
+            <input id="materialSearch" class="form-control form-control-sm" type="search" placeholder="輸入材質編碼或材質名稱尋找" />
+        </div>
+        <partial name="_ListView" model="Model.ListView" />
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var root = document.querySelector("[data-material-layout-test]");
+            if (!root) {
+                return;
+            }
+
+            var listView = root.querySelector(".listview-component");
+            var table = root.querySelector(".listview-table");
+            var tableBody = table.querySelector("tbody");
+            var form = document.getElementById("materialForm");
+            var search = document.getElementById("materialSearch");
+            var status = root.querySelector("[data-material-status]");
+            var selectedIndex = 0;
+            var materials = readMaterialsFromTable();
+            var filteredIndexes = materials.map(function (_, index) { return index; });
+
+            function readMaterialsFromTable() {
+                return Array.prototype.slice.call(tableBody.querySelectorAll("tr")).map(function (row) {
+                    return {
+                        MaterialCode: getCellText(row, "MaterialCode"),
+                        MaterialName: getCellText(row, "MaterialName")
+                    };
+                });
+            }
+
+            function getCellText(row, key) {
+                var cell = row.querySelector('[data-col-key="' + key + '"]');
+                return cell ? cell.textContent.trim() : "";
+            }
+
+            function renderRows() {
+                tableBody.innerHTML = "";
+                filteredIndexes.forEach(function (materialIndex) {
+                    var material = materials[materialIndex];
+                    var row = document.createElement("tr");
+                    row.dataset.materialIndex = String(materialIndex);
+                    row.className = materialIndex === selectedIndex ? "is-selected" : "";
+
+                    getHeaderColumns().forEach(function (column) {
+                        var cell = document.createElement("td");
+                        cell.dataset.colKey = column.key;
+                        cell.style.width = column.width;
+                        cell.style.minWidth = column.minWidth;
+                        cell.classList.toggle("is-hidden", column.hidden);
+                        cell.textContent = material[column.key] || "";
+                        row.appendChild(cell);
+                    });
+
+                    row.addEventListener("click", function () {
+                        selectMaterial(materialIndex);
+                    });
+                    tableBody.appendChild(row);
+                });
+                setStatus("共 " + filteredIndexes.length + " 筆");
+            }
+
+            function getHeaderColumns() {
+                return Array.prototype.slice.call(table.querySelectorAll("thead th[data-col-key]")).map(function (header) {
+                    return {
+                        key: header.dataset.colKey,
+                        hidden: header.classList.contains("is-hidden"),
+                        width: header.style.width || header.offsetWidth + "px",
+                        minWidth: header.style.minWidth || "80px"
+                    };
+                });
+            }
+
+            function selectMaterial(index) {
+                if (index < 0 || index >= materials.length) {
+                    clearForm();
+                    return;
+                }
+
+                selectedIndex = index;
+                fillForm(materials[selectedIndex]);
+                renderRows();
+            }
+
+            function fillForm(material) {
+                form.elements.MaterialCode.value = material.MaterialCode || "";
+                form.elements.MaterialName.value = material.MaterialName || "";
+            }
+
+            function clearForm() {
+                form.elements.MaterialCode.value = "";
+                form.elements.MaterialName.value = "";
+                form.elements.MaterialCode.focus();
+            }
+
+            function collectForm() {
+                return {
+                    MaterialCode: form.elements.MaterialCode.value.trim(),
+                    MaterialName: form.elements.MaterialName.value.trim()
+                };
+            }
+
+            function createMaterial() {
+                selectedIndex = -1;
+                clearForm();
+                renderRows();
+                setStatus("新增模式，輸入後按修改圖示加入清單");
+            }
+
+            function copyMaterial() {
+                if (selectedIndex < 0 || materials.length === 0) {
+                    setStatus("沒有可複製的材質");
+                    return;
+                }
+
+                fillForm({
+                    MaterialCode: "",
+                    MaterialName: materials[selectedIndex].MaterialName + " 複本"
+                });
+                selectedIndex = -1;
+                renderRows();
+                form.elements.MaterialCode.focus();
+                setStatus("已複製目前材質，按修改圖示加入清單");
+            }
+
+            function saveMaterial() {
+                var material = collectForm();
+                if (!material.MaterialCode || !material.MaterialName) {
+                    setStatus("材質編碼與材質名稱不可空白");
+                    form.elements.MaterialCode.focus();
+                    return;
+                }
+
+                if (selectedIndex >= 0) {
+                    materials[selectedIndex] = material;
+                    setStatus("已修改目前材質");
+                } else {
+                    materials.push(material);
+                    selectedIndex = materials.length - 1;
+                    setStatus("已新增材質");
+                }
+
+                applyFilter();
+                selectMaterial(selectedIndex);
+            }
+
+            function deleteMaterial() {
+                if (selectedIndex < 0 || materials.length === 0) {
+                    setStatus("沒有可刪除的材質");
+                    return;
+                }
+
+                materials.splice(selectedIndex, 1);
+                selectedIndex = Math.min(selectedIndex, materials.length - 1);
+                applyFilter();
+                if (filteredIndexes.length > 0) {
+                    selectMaterial(filteredIndexes[0]);
+                } else {
+                    clearForm();
+                    renderRows();
+                }
+                setStatus("已刪除材質");
+            }
+
+            function cancelEdit() {
+                if (selectedIndex >= 0 && materials[selectedIndex]) {
+                    fillForm(materials[selectedIndex]);
+                    setStatus("已取消編輯並還原目前材質");
+                } else if (filteredIndexes.length > 0) {
+                    selectMaterial(filteredIndexes[0]);
+                    setStatus("已取消新增");
+                } else {
+                    clearForm();
+                    setStatus("已取消");
+                }
+            }
+
+            function applyFilter() {
+                var keyword = search.value.trim().toLowerCase();
+                filteredIndexes = materials
+                    .map(function (_, index) { return index; })
+                    .filter(function (index) {
+                        if (!keyword) {
+                            return true;
+                        }
+
+                        return ["MaterialCode", "MaterialName"].some(function (field) {
+                            return String(materials[index][field] || "").toLowerCase().indexOf(keyword) >= 0;
+                        });
+                    });
+
+                if (filteredIndexes.indexOf(selectedIndex) < 0) {
+                    selectedIndex = filteredIndexes.length > 0 ? filteredIndexes[0] : -1;
+                }
+                renderRows();
+            }
+
+            function moveSelection(action) {
+                if (filteredIndexes.length === 0) {
+                    selectedIndex = -1;
+                    clearForm();
+                    setStatus("沒有符合條件的材質");
+                    return;
+                }
+
+                var position = filteredIndexes.indexOf(selectedIndex);
+                if (position < 0) {
+                    position = 0;
+                }
+
+                if (action === "first") {
+                    position = 0;
+                } else if (action === "previous") {
+                    position = Math.max(0, position - 1);
+                } else if (action === "next") {
+                    position = Math.min(filteredIndexes.length - 1, position + 1);
+                } else if (action === "last") {
+                    position = filteredIndexes.length - 1;
+                }
+
+                selectMaterial(filteredIndexes[position]);
+                setStatus((position + 1) + "/" + filteredIndexes.length);
+            }
+
+            function setStatus(message) {
+                status.textContent = message;
+            }
+
+            document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                var action = event.detail.action;
+                if (action === "create") {
+                    event.preventDefault();
+                    createMaterial();
+                } else if (action === "edit") {
+                    event.preventDefault();
+                    saveMaterial();
+                } else if (action === "copy") {
+                    event.preventDefault();
+                    copyMaterial();
+                } else if (action === "cancel") {
+                    event.preventDefault();
+                    cancelEdit();
+                } else if (action === "delete") {
+                    event.preventDefault();
+                    deleteMaterial();
+                } else if (action === "find") {
+                    event.preventDefault();
+                    search.focus();
+                    search.select();
+                    applyFilter();
+                } else if (["first", "previous", "next", "last"].indexOf(action) >= 0) {
+                    event.preventDefault();
+                    moveSelection(action);
+                }
+            });
+
+            search.addEventListener("input", applyFilter);
+
+            listView.addEventListener("click", function (event) {
+                var row = event.target.closest("tbody tr[data-material-index]");
+                if (row) {
+                    selectMaterial(parseInt(row.dataset.materialIndex, 10));
+                }
+            });
+
+            renderRows();
+            selectMaterial(0);
+        })();
+    </script>
+}
