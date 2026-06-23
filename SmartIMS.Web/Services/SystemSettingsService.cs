@@ -42,31 +42,24 @@ public sealed class SystemSettingsService
             GetSetting(settings, "LOGIN_SUBTITLE", "請使用管理員提供的帳號登入"));
     }
 
-    public async Task SaveBrandingAsync(SystemBranding branding)
+    public async Task<SystemSkin> GetSkinAsync()
+    {
+        var settings = await GetSettingsAsync();
+        return SystemSkin.Create(GetSetting(settings, "SYSTEM_SKIN", SystemSkin.DefaultSkinKey));
+    }
+
+    public async Task SaveBrandingAsync(SystemBranding branding, SystemSkin skin)
     {
         await using var connection = _connectionFactory.CreateConnection();
         await connection.OpenAsync();
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync();
 
         await UpsertSettingAsync(connection, transaction, "COMPANY_NAME", "公司名稱", "公司形象", branding.CompanyName, "顯示於 Header 與系統標題");
-        await UpsertSettingAsync(
-            connection,
-            transaction,
-            "COMPANY_LOGO_PATH",
-            "公司標誌",
-            "公司形象",
-            branding.CompanyLogoPath ?? "",
-            "頁首與登入頁使用的公司標誌路徑");
-        await UpsertSettingAsync(
-            connection,
-            transaction,
-            "LOGIN_HERO_IMAGE_PATH",
-            "登入形象圖",
-            "公司形象",
-            branding.LoginHeroImagePath ?? "",
-            "登入頁左側形象圖片路徑");
+        await UpsertSettingAsync(connection, transaction, "COMPANY_LOGO_PATH", "Company Logo", "Branding", branding.CompanyLogoPath ?? "", "Logo used in the header and login card");
+        await UpsertSettingAsync(connection, transaction, "LOGIN_HERO_IMAGE_PATH", "Login Hero Image", "Branding", branding.LoginHeroImagePath ?? "", "Hero background image for the login page");
         await UpsertSettingAsync(connection, transaction, "LOGIN_TITLE", "登入標題", "公司形象", branding.LoginTitle, "登入頁主標題");
         await UpsertSettingAsync(connection, transaction, "LOGIN_SUBTITLE", "登入副標題", "公司形象", branding.LoginSubtitle, "登入頁副標題");
+        await UpsertSettingAsync(connection, transaction, "SYSTEM_SKIN", "系統皮膚", "介面設定", skin.SkinKey, "全站套用的介面皮膚");
 
         await transaction.CommitAsync();
     }

@@ -51,7 +51,7 @@ public sealed class AdminController : Controller
     {
         if (model.AppUserId is null && string.IsNullOrWhiteSpace(model.Password))
         {
-            ModelState.AddModelError(nameof(model.Password), "新增使用者需要密碼。");
+            ModelState.AddModelError(nameof(model.Password), "新增使用者時必須輸入密碼");
         }
 
         if (!ModelState.IsValid)
@@ -60,7 +60,7 @@ public sealed class AdminController : Controller
         }
 
         await _adminService.SaveUserAsync(model);
-        TempData["StatusMessage"] = "使用者資料已儲存。";
+        TempData["StatusMessage"] = "使用者資料已儲存";
         return RedirectToAction(nameof(Users));
     }
 
@@ -71,12 +71,12 @@ public sealed class AdminController : Controller
     {
         if (string.IsNullOrWhiteSpace(password) || password.Length < 8)
         {
-            TempData["StatusMessage"] = "新密碼至少需要 8 個字元。";
+            TempData["StatusMessage"] = "密碼長度至少需要 8 個字元";
             return RedirectToAction(nameof(Users));
         }
 
         await _adminService.ResetPasswordAsync(id, password);
-        TempData["StatusMessage"] = "密碼已重設。";
+        TempData["StatusMessage"] = "密碼已重設";
         return RedirectToAction(nameof(Users));
     }
 
@@ -108,7 +108,7 @@ public sealed class AdminController : Controller
     public async Task<IActionResult> SavePermissions(long appUserId, long[] permissionIds)
     {
         await _permissionService.ReplaceUserPermissionsAsync(appUserId, permissionIds);
-        TempData["StatusMessage"] = "使用者權限已儲存，重新登入後會套用到導覽與頁面授權。";
+        TempData["StatusMessage"] = "使用者權限已儲存，重新登入後生效";
         return RedirectToAction(nameof(Permissions), new { userId = appUserId });
     }
 
@@ -117,13 +117,15 @@ public sealed class AdminController : Controller
     public async Task<IActionResult> Branding()
     {
         var branding = await _settingsService.GetBrandingAsync();
+        var skin = await _settingsService.GetSkinAsync();
         return View(new BrandingViewModel
         {
             CompanyName = branding.CompanyName,
             CompanyLogoPath = branding.CompanyLogoPath,
             LoginHeroImagePath = branding.LoginHeroImagePath,
             LoginTitle = branding.LoginTitle,
-            LoginSubtitle = branding.LoginSubtitle
+            LoginSubtitle = branding.LoginSubtitle,
+            SkinKey = skin.SkinKey
         });
     }
 
@@ -134,20 +136,30 @@ public sealed class AdminController : Controller
     {
         if (!ModelState.IsValid)
         {
+            model.AvailableSkins = SystemSkin.AvailableSkins;
+            return View(model);
+        }
+
+        if (!SystemSkin.IsValidSkinKey(model.SkinKey))
+        {
+            ModelState.AddModelError(nameof(model.SkinKey), "請選擇有效的系統皮膚");
+            model.AvailableSkins = SystemSkin.AvailableSkins;
             return View(model);
         }
 
         var logoPath = await SaveBrandingFileAsync(companyLogo) ?? model.CompanyLogoPath;
         var heroPath = await SaveBrandingFileAsync(loginHeroImage) ?? model.LoginHeroImagePath;
 
-        await _settingsService.SaveBrandingAsync(new SystemBranding(
-            model.CompanyName.Trim(),
-            logoPath,
-            heroPath,
-            model.LoginTitle.Trim(),
-            model.LoginSubtitle.Trim()));
+        await _settingsService.SaveBrandingAsync(
+            new SystemBranding(
+                model.CompanyName.Trim(),
+                logoPath,
+                heroPath,
+                model.LoginTitle.Trim(),
+                model.LoginSubtitle.Trim()),
+            SystemSkin.Create(model.SkinKey));
 
-        TempData["StatusMessage"] = "公司形象設定已儲存。";
+        TempData["StatusMessage"] = "公司形象設定已儲存";
         return RedirectToAction(nameof(Branding));
     }
 

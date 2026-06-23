@@ -2,10 +2,16 @@
 @inject SystemSettingsService Settings
 @{
     var branding = await Settings.GetBrandingAsync();
+    var skin = await Settings.GetSkinAsync();
     var displayName = User.FindFirst("display_name")?.Value ?? User.Identity?.Name ?? "";
+    var toolbarPermissionCodes = string.Join(" ", User.Claims
+        .Where(claim => claim.Type == AuthService.PermissionClaimType)
+        .Select(claim => claim.Value));
+    var toolbarPageCode = ViewData["ToolbarPageCode"] as string ?? "";
+    var toolbarActions = ViewData["ToolbarActions"] as string ?? "";
 }
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-skin="@skin.SkinKey">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -36,6 +42,52 @@
             </form>
         </div>
     </header>
+    <nav class="app-toolbar" aria-label="功能區" data-user-permissions="@toolbarPermissionCodes">
+        <svg class="toolbar-symbols" aria-hidden="true" focusable="false">
+            <symbol id="toolbar-icon-create" viewBox="0 0 24 24">
+                <path d="M12 5v14M5 12h14" />
+            </symbol>
+            <symbol id="toolbar-icon-delete" viewBox="0 0 24 24">
+                <path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3" />
+            </symbol>
+            <symbol id="toolbar-icon-edit" viewBox="0 0 24 24">
+                <path d="M4 20h4L19 9l-4-4L4 16v4zM13 7l4 4" />
+            </symbol>
+            <symbol id="toolbar-icon-find" viewBox="0 0 24 24">
+                <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15zM16 16l5 5" />
+            </symbol>
+            <symbol id="toolbar-icon-print" viewBox="0 0 24 24">
+                <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z" />
+            </symbol>
+            <symbol id="toolbar-icon-first" viewBox="0 0 24 24">
+                <path d="M5 5v14M19 6l-7 6 7 6M12 6l-7 6 7 6" />
+            </symbol>
+            <symbol id="toolbar-icon-previous" viewBox="0 0 24 24">
+                <path d="M15 6l-7 6 7 6" />
+            </symbol>
+            <symbol id="toolbar-icon-next" viewBox="0 0 24 24">
+                <path d="M9 6l7 6-7 6" />
+            </symbol>
+            <symbol id="toolbar-icon-last" viewBox="0 0 24 24">
+                <path d="M19 5v14M5 6l7 6-7 6M12 6l7 6-7 6" />
+            </symbol>
+        </svg>
+        <div class="app-toolbar-group">
+            <button class="app-toolbar-button" type="button" data-toolbar-action="create" data-permission-suffix="CREATE" title="新增" aria-label="新增" disabled><svg><use href="#toolbar-icon-create"></use></svg></button>
+            <button class="app-toolbar-button" type="button" data-toolbar-action="delete" data-permission-suffix="DELETE" title="刪除" aria-label="刪除" disabled><svg><use href="#toolbar-icon-delete"></use></svg></button>
+            <button class="app-toolbar-button" type="button" data-toolbar-action="edit" data-permission-suffix="EDIT" title="修改" aria-label="修改" disabled><svg><use href="#toolbar-icon-edit"></use></svg></button>
+            <button class="app-toolbar-button" type="button" data-toolbar-action="find" data-permission-suffix="FIND" title="尋找" aria-label="尋找" disabled><svg><use href="#toolbar-icon-find"></use></svg></button>
+            <button class="app-toolbar-button" type="button" data-toolbar-action="print" data-permission-suffix="PRINT" title="列印" aria-label="列印" disabled><svg><use href="#toolbar-icon-print"></use></svg></button>
+        </div>
+        <div class="app-toolbar-separator" aria-hidden="true"></div>
+        <div class="app-toolbar-group">
+            <button class="app-toolbar-button" type="button" data-toolbar-action="first" data-permission-suffix="FIRST" title="第一筆" aria-label="第一筆" disabled><svg><use href="#toolbar-icon-first"></use></svg></button>
+            <button class="app-toolbar-button" type="button" data-toolbar-action="previous" data-permission-suffix="PREVIOUS" title="上一筆" aria-label="上一筆" disabled><svg><use href="#toolbar-icon-previous"></use></svg></button>
+            <button class="app-toolbar-button" type="button" data-toolbar-action="next" data-permission-suffix="NEXT" title="下一筆" aria-label="下一筆" disabled><svg><use href="#toolbar-icon-next"></use></svg></button>
+            <button class="app-toolbar-button" type="button" data-toolbar-action="last" data-permission-suffix="LAST" title="最後一筆" aria-label="最後一筆" disabled><svg><use href="#toolbar-icon-last"></use></svg></button>
+        </div>
+        <span class="app-toolbar-status" aria-live="polite"></span>
+    </nav>
     <div class="app-shell">
         @await Component.InvokeAsync("Navigation")
         <main class="app-content" role="main">
@@ -43,7 +95,7 @@
             {
                 <div class="alert alert-info py-2 mb-3">@statusMessage</div>
             }
-            <div class="content-frame">
+            <div class="content-frame" data-toolbar-page="@toolbarPageCode" data-toolbar-actions="@toolbarActions">
                 @RenderBody()
             </div>
         </main>

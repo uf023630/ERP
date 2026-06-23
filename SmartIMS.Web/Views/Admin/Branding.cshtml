@@ -1,10 +1,12 @@
 @model SmartIMS.Web.ViewModels.BrandingViewModel
 @{
-    ViewData["Title"] = "公司形象";
+    ViewData["Title"] = "公司形象設定";
+    ViewData["ToolbarPageCode"] = "PAGE_ADMIN_BRANDING";
+    ViewData["ToolbarActions"] = "edit,find,print";
 }
 
 <div class="page-title-row">
-    <h1>公司形象</h1>
+    <h1>公司形象設定</h1>
 </div>
 
 <div class="row g-2">
@@ -33,9 +35,19 @@
                     <label class="form-label">公司 Logo</label>
                     <input name="companyLogo" type="file" class="form-control form-control-sm" accept="image/*" />
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">登入形象圖</label>
+                <div class="mb-2">
+                    <label class="form-label">登入背景圖</label>
                     <input name="loginHeroImage" type="file" class="form-control form-control-sm" accept="image/*" />
+                </div>
+                <div class="mb-3">
+                    <label asp-for="SkinKey" class="form-label"></label>
+                    <select asp-for="SkinKey" class="form-select form-select-sm">
+                        @foreach (var skin in Model.AvailableSkins)
+                        {
+                            <option value="@skin.Key">@skin.Name</option>
+                        }
+                    </select>
+                    <span asp-validation-for="SkinKey" class="text-danger small"></span>
                 </div>
                 <button type="submit" class="btn btn-sm btn-primary">儲存</button>
             </form>
@@ -43,7 +55,7 @@
     </div>
     <div class="col-lg-6">
         <div class="win-panel">
-            <div class="section-caption">預覽</div>
+            <div class="section-caption">品牌預覽</div>
             <div class="branding-preview">
                 @if (!string.IsNullOrWhiteSpace(Model.CompanyLogoPath))
                 {
@@ -62,7 +74,24 @@
             <div class="preview-hero mt-2" style="@(string.IsNullOrWhiteSpace(Model.LoginHeroImagePath) ? "" : $"background-image: url('{Model.LoginHeroImagePath}');")">
                 @if (string.IsNullOrWhiteSpace(Model.LoginHeroImagePath))
                 {
-                    <span>尚未設定登入形象圖</span>
+                    <span>尚未設定登入背景圖</span>
+                }
+            </div>
+        </div>
+        <div class="win-panel mt-2">
+            <div class="section-caption">皮膚預覽</div>
+            <div class="skin-preview-grid">
+                @foreach (var skin in Model.AvailableSkins)
+                {
+                    <div class="skin-preview-card @(Model.SkinKey == skin.Key ? "is-selected" : "")" data-skin="@skin.Key">
+                        <span class="skin-preview-name">@skin.Name</span>
+                        <span class="skin-preview-description">@skin.Description</span>
+                        <span class="skin-preview-swatches" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </span>
+                    </div>
                 }
             </div>
         </div>

@@ -68,6 +68,12 @@ public sealed class BrandingViewModel
     [Display(Name = "登入副標題")]
     public string LoginSubtitle { get; set; } = "";
 
+    [Required(ErrorMessage = "請選擇系統皮膚")]
+    [Display(Name = "系統皮膚")]
+    public string SkinKey { get; set; } = SystemSkin.DefaultSkinKey;
+
+    public IReadOnlyList<SystemSkinOption> AvailableSkins { get; set; } = SystemSkin.AvailableSkins;
+
     public string? CompanyLogoPath { get; set; }
     public string? LoginHeroImagePath { get; set; }
 }

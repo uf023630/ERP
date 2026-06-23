@@ -1,5 +1,10 @@
+@using SmartIMS.Web.Services
+@inject SystemSettingsService Settings
+@{
+    var skin = await Settings.GetSkinAsync();
+}
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-skin="@skin.SkinKey">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

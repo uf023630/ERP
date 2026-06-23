@@ -1,6 +1,8 @@
 @model SmartIMS.Web.ViewModels.AdminUserEditViewModel
 @{
     ViewData["Title"] = Model.AppUserId is null ? "新增使用者" : "編輯使用者";
+    ViewData["ToolbarPageCode"] = "PAGE_ADMIN_USERS";
+    ViewData["ToolbarActions"] = "edit,find,print";
 }
 
 <div class="page-title-row">
