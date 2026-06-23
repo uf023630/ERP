@@ -25,7 +25,8 @@ public sealed class PermissionService
         [
             new("基礎資料預留", "Home", "Index", "PAGE_DASHBOARD"),
             new("元件測試頁面", "Home", "ComponentTest", "PAGE_COMPONENT_TEST"),
-            new("客戶資料管理", "Home", "CustomerLayoutTest", "PAGE_COMPONENT_TEST")
+            new("客戶資料管理", "Home", "CustomerLayoutTest", "PAGE_COMPONENT_TEST"),
+            new("商品資料管理", "Home", "ProductLayoutTest", "PAGE_COMPONENT_TEST")
         ])
     ];
 

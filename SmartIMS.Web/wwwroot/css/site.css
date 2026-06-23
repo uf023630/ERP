@@ -646,12 +646,14 @@ body {
   padding: 5px 8px;
 }
 
-.customer-layout-test {
+.customer-layout-test,
+.product-layout-test {
   display: grid;
   gap: 8px;
 }
 
-.customer-list-tools {
+.customer-list-tools,
+.product-list-tools {
   align-items: center;
   display: grid;
   gap: 8px;
@@ -659,21 +661,25 @@ body {
   margin-bottom: 8px;
 }
 
-.customer-layout-status {
+.customer-layout-status,
+.product-layout-status {
   color: var(--app-muted);
   font-size: 12px;
 }
 
-.customer-list-frame {
+.customer-list-frame,
+.product-list-frame {
   max-height: 260px;
   overflow: auto;
 }
 
-.customer-list-table tbody tr {
+.customer-list-table tbody tr,
+.product-list-table tbody tr {
   cursor: pointer;
 }
 
-.customer-detail-form textarea {
+.customer-detail-form textarea,
+.product-detail-form textarea {
   resize: vertical;
 }
 

@@ -190,7 +190,6 @@ C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-layout-build-check\Smart
 C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-layout-build-check\SmartIMS.Web.runtimeconfig.json
 C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-layout-build-check\SmartIMS.Web.dll
 C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-layout-build-check\SmartIMS.Web.pdb
-E:\新版進銷存系統\SmartIMS.Web\obj\Debug\net10.0\compressed\ehijau4z42-{0}-88hk3q2xya-88hk3q2xya.gz
 C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-permission-build-check\web.config
 C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-permission-build-check\appsettings.Development.json
 C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-permission-build-check\appsettings.json
@@ -222,3 +221,14 @@ C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-order-build-check\SmartI
 C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-order-build-check\SmartIMS.Web.runtimeconfig.json
 C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-order-build-check\SmartIMS.Web.dll
 C:\Users\iktwadmin\AppData\Local\Temp\smartims-customer-order-build-check\SmartIMS.Web.pdb
+C:\Users\iktwadmin\AppData\Local\Temp\smartims-product-layout-build-check\web.config
+C:\Users\iktwadmin\AppData\Local\Temp\smartims-product-layout-build-check\appsettings.Development.json
+C:\Users\iktwadmin\AppData\Local\Temp\smartims-product-layout-build-check\appsettings.json
+C:\Users\iktwadmin\AppData\Local\Temp\smartims-product-layout-build-check\SmartIMS.Web.staticwebassets.runtime.json
+C:\Users\iktwadmin\AppData\Local\Temp\smartims-product-layout-build-check\SmartIMS.Web.staticwebassets.endpoints.json
+C:\Users\iktwadmin\AppData\Local\Temp\smartims-product-layout-build-check\SmartIMS.Web.exe
+C:\Users\iktwadmin\AppData\Local\Temp\smartims-product-layout-build-check\SmartIMS.Web.deps.json
+C:\Users\iktwadmin\AppData\Local\Temp\smartims-product-layout-build-check\SmartIMS.Web.runtimeconfig.json
+C:\Users\iktwadmin\AppData\Local\Temp\smartims-product-layout-build-check\SmartIMS.Web.dll
+C:\Users\iktwadmin\AppData\Local\Temp\smartims-product-layout-build-check\SmartIMS.Web.pdb
+E:\新版進銷存系統\SmartIMS.Web\obj\Debug\net10.0\compressed\ehijau4z42-{0}-jvf8inh73g-jvf8inh73g.gz

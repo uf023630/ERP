@@ -44,6 +44,12 @@ public class HomeController : Controller
         return View();
     }
 
+    [RequirePermission("PAGE_COMPONENT_TEST")]
+    public IActionResult ProductLayoutTest()
+    {
+        return View();
+    }
+
     public IActionResult Privacy()
     {
         return View();

@@ -1,0 +1,503 @@
+@{
+    ViewData["Title"] = "商品資料管理";
+    ViewData["ToolbarPageCode"] = "PAGE_COMPONENT_TEST";
+    ViewData["ToolbarActions"] = "create,delete,copy,edit,cancel,find,print,first,previous,next,last";
+}
+
+<div class="page-title-row">
+    <h1>商品資料管理</h1>
+    <span class="text-muted small">Layout 測試資料，不連接資料庫</span>
+</div>
+
+<div class="product-layout-test" data-product-layout-test>
+    <div class="win-panel mb-2">
+        <div class="section-caption">商品明細</div>
+        <form id="productForm" class="compact-form product-detail-form">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label" for="productCode">商品編號</label>
+                    <input id="productCode" name="productCode" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="productName">商品名稱</label>
+                    <input id="productName" name="productName" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="material">材質</label>
+                    <input id="material" name="material" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="thickness">厚度</label>
+                    <input id="thickness" name="thickness" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="unit">單位</label>
+                    <input id="unit" name="unit" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="length">長度</label>
+                    <input id="length" name="length" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="width">寬度</label>
+                    <input id="width" name="width" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="spec">規格</label>
+                    <input id="spec" name="spec" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="price">單價</label>
+                    <input id="price" name="price" class="form-control form-control-sm" type="number" min="0" step="0.01" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="note">備註</label>
+                    <textarea id="note" name="note" class="form-control form-control-sm" rows="3"></textarea>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="win-panel">
+        <div class="listview-toolbar mb-2">
+            <div class="section-caption listview-title">商品清單</div>
+            <button class="btn btn-sm btn-outline-secondary product-settings-toggle" type="button" aria-expanded="false">
+                欄位設定
+            </button>
+        </div>
+
+        <div class="product-list-settings listview-settings-panel" hidden>
+            <div class="listview-settings-header">
+                <span>顯示欄位與位置</span>
+                <button class="btn btn-sm btn-outline-secondary product-reset-columns" type="button">重設預設</button>
+            </div>
+            <div id="productColumnOptions" class="listview-column-options"></div>
+        </div>
+
+        <div class="product-list-tools">
+            <input id="productSearch" class="form-control form-control-sm" type="search" placeholder="輸入商品編號、商品名稱、材質或規格尋找" />
+            <span class="product-layout-status" data-product-status></span>
+        </div>
+
+        <div class="listview-frame product-list-frame">
+            <table class="listview-table product-list-table">
+                <thead>
+                    <tr id="productHeaderRow"></tr>
+                </thead>
+                <tbody id="productRows"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var columns = [
+                { key: "productCode", title: "商品編號", width: 120, minWidth: 90, visible: true },
+                { key: "productName", title: "商品名稱", width: 180, minWidth: 120, visible: true },
+                { key: "material", title: "材質", width: 100, minWidth: 80, visible: true },
+                { key: "thickness", title: "厚度", width: 90, minWidth: 70, visible: true },
+                { key: "length", title: "長度", width: 90, minWidth: 70, visible: true },
+                { key: "width", title: "寬度", width: 90, minWidth: 70, visible: true },
+                { key: "spec", title: "規格", width: 180, minWidth: 120, visible: true },
+                { key: "unit", title: "單位", width: 80, minWidth: 60, visible: true },
+                { key: "price", title: "單價", width: 100, minWidth: 80, visible: true },
+                { key: "note", title: "備註", width: 220, minWidth: 120, visible: true }
+            ];
+
+            var defaultColumns = columns.map(function (column) {
+                return Object.assign({}, column);
+            });
+
+            var products = [
+                {
+                    productCode: "P-AL-001",
+                    productName: "鋁板 5052",
+                    material: "鋁",
+                    thickness: "2.0mm",
+                    length: "2440",
+                    width: "1220",
+                    spec: "5052-H32",
+                    unit: "片",
+                    price: "1850",
+                    note: "常備料。"
+                },
+                {
+                    productCode: "P-SUS-010",
+                    productName: "不鏽鋼板",
+                    material: "SUS304",
+                    thickness: "1.5mm",
+                    length: "3000",
+                    width: "1500",
+                    spec: "霧面",
+                    unit: "片",
+                    price: "3200",
+                    note: "需確認表面保護膜。"
+                },
+                {
+                    productCode: "P-FE-220",
+                    productName: "黑鐵板",
+                    material: "SS400",
+                    thickness: "6.0mm",
+                    length: "2400",
+                    width: "1200",
+                    spec: "熱軋",
+                    unit: "片",
+                    price: "2100",
+                    note: "依批次報價。"
+                }
+            ];
+
+            var selectedIndex = 0;
+            var filteredIndexes = products.map(function (_, index) { return index; });
+            var root = document.querySelector("[data-product-layout-test]");
+            var form = document.getElementById("productForm");
+            var search = document.getElementById("productSearch");
+            var status = root.querySelector("[data-product-status]");
+            var tableHead = document.getElementById("productHeaderRow");
+            var tableBody = document.getElementById("productRows");
+            var columnOptions = document.getElementById("productColumnOptions");
+            var settingsToggle = root.querySelector(".product-settings-toggle");
+            var settingsPanel = root.querySelector(".product-list-settings");
+            var resetColumns = root.querySelector(".product-reset-columns");
+            var fields = columns.map(function (column) { return column.key; });
+
+            function renderAll() {
+                renderColumnOptions();
+                renderHeader();
+                renderRows();
+            }
+
+            function renderColumnOptions() {
+                columnOptions.innerHTML = "";
+                columns.forEach(function (column) {
+                    var label = document.createElement("label");
+                    label.className = "listview-column-option";
+                    label.draggable = true;
+                    label.dataset.colKey = column.key;
+                    label.innerHTML =
+                        '<span class="listview-drag-handle" aria-hidden="true">::</span>' +
+                        '<input class="form-check-input product-column-visible" type="checkbox"' + (column.visible ? " checked" : "") + " />" +
+                        '<span>' + escapeHtml(column.title) + "</span>";
+                    label.querySelector("input").addEventListener("change", function (event) {
+                        column.visible = event.target.checked;
+                        renderHeader();
+                        renderRows();
+                    });
+                    addColumnDrag(label);
+                    columnOptions.appendChild(label);
+                });
+            }
+
+            function renderHeader() {
+                tableHead.innerHTML = "";
+                columns.forEach(function (column) {
+                    if (!column.visible) {
+                        return;
+                    }
+                    var th = document.createElement("th");
+                    th.draggable = true;
+                    th.dataset.colKey = column.key;
+                    th.style.width = column.width + "px";
+                    th.style.minWidth = column.minWidth + "px";
+                    th.innerHTML = '<span class="listview-column-title">' + escapeHtml(column.title) + '</span><span class="listview-resize-handle" aria-hidden="true"></span>';
+                    addColumnDrag(th);
+                    th.querySelector(".listview-resize-handle").addEventListener("mousedown", function (event) {
+                        startResize(column, event);
+                    });
+                    tableHead.appendChild(th);
+                });
+            }
+
+            function renderRows() {
+                tableBody.innerHTML = "";
+                filteredIndexes.forEach(function (productIndex) {
+                    var product = products[productIndex];
+                    var row = document.createElement("tr");
+                    row.dataset.productIndex = String(productIndex);
+                    row.className = productIndex === selectedIndex ? "is-selected" : "";
+                    columns.forEach(function (column) {
+                        if (!column.visible) {
+                            return;
+                        }
+                        var td = document.createElement("td");
+                        td.dataset.colKey = column.key;
+                        td.style.width = column.width + "px";
+                        td.style.minWidth = column.minWidth + "px";
+                        td.textContent = product[column.key] || "";
+                        row.appendChild(td);
+                    });
+                    row.addEventListener("click", function () {
+                        selectProduct(productIndex);
+                    });
+                    tableBody.appendChild(row);
+                });
+                setStatus("共 " + filteredIndexes.length + " 筆");
+            }
+
+            function addColumnDrag(element) {
+                element.addEventListener("dragstart", function (event) {
+                    if (event.target.classList.contains("listview-resize-handle")) {
+                        event.preventDefault();
+                        return;
+                    }
+                    event.dataTransfer.setData("text/plain", element.dataset.colKey);
+                    event.dataTransfer.effectAllowed = "move";
+                    element.classList.add("is-dragging");
+                });
+                element.addEventListener("dragend", function () {
+                    element.classList.remove("is-dragging");
+                });
+                element.addEventListener("dragover", function (event) {
+                    event.preventDefault();
+                });
+                element.addEventListener("drop", function (event) {
+                    event.preventDefault();
+                    moveColumn(event.dataTransfer.getData("text/plain"), element.dataset.colKey);
+                });
+            }
+
+            function moveColumn(sourceKey, targetKey) {
+                if (!sourceKey || !targetKey || sourceKey === targetKey) {
+                    return;
+                }
+                var sourceIndex = columns.findIndex(function (column) { return column.key === sourceKey; });
+                var targetIndex = columns.findIndex(function (column) { return column.key === targetKey; });
+                if (sourceIndex < 0 || targetIndex < 0) {
+                    return;
+                }
+                var source = columns.splice(sourceIndex, 1)[0];
+                columns.splice(targetIndex, 0, source);
+                renderAll();
+            }
+
+            function startResize(column, event) {
+                event.preventDefault();
+                event.stopPropagation();
+                var startX = event.clientX;
+                var startWidth = column.width;
+
+                function onMove(moveEvent) {
+                    column.width = Math.max(column.minWidth, startWidth + moveEvent.clientX - startX);
+                    renderHeader();
+                    renderRows();
+                }
+
+                function onUp() {
+                    document.removeEventListener("mousemove", onMove);
+                    document.removeEventListener("mouseup", onUp);
+                }
+
+                document.addEventListener("mousemove", onMove);
+                document.addEventListener("mouseup", onUp);
+            }
+
+            function selectProduct(index) {
+                if (index < 0 || index >= products.length) {
+                    clearForm();
+                    return;
+                }
+                selectedIndex = index;
+                fillForm(products[selectedIndex]);
+                renderRows();
+            }
+
+            function fillForm(product) {
+                fields.forEach(function (field) {
+                    getField(field).value = product[field] || "";
+                });
+            }
+
+            function clearForm() {
+                fields.forEach(function (field) {
+                    getField(field).value = "";
+                });
+                getField("productCode").focus();
+            }
+
+            function collectForm() {
+                var product = {};
+                fields.forEach(function (field) {
+                    product[field] = getField(field).value.trim();
+                });
+                return product;
+            }
+
+            function getField(field) {
+                return form.querySelector('[name="' + field + '"]');
+            }
+
+            function createProduct() {
+                clearForm();
+                selectedIndex = -1;
+                setStatus("新增模式，輸入資料後按修改圖示儲存到清單");
+            }
+
+            function copyProduct() {
+                if (selectedIndex < 0 || products.length === 0) {
+                    setStatus("沒有可複製的商品");
+                    return;
+                }
+                var source = products[selectedIndex];
+                fillForm(Object.assign({}, source, {
+                    productCode: "",
+                    productName: source.productName + " 複本"
+                }));
+                selectedIndex = -1;
+                renderRows();
+                getField("productCode").focus();
+                setStatus("已複製目前商品，按修改圖示儲存成新資料");
+            }
+
+            function saveProduct() {
+                var product = collectForm();
+                if (!product.productCode || !product.productName) {
+                    getField("productCode").focus();
+                    setStatus("商品編號與商品名稱不可空白");
+                    return;
+                }
+                if (selectedIndex >= 0) {
+                    products[selectedIndex] = product;
+                    setStatus("已修改目前商品");
+                } else {
+                    products.push(product);
+                    selectedIndex = products.length - 1;
+                    setStatus("已新增商品");
+                }
+                applyFilter();
+                selectProduct(selectedIndex);
+            }
+
+            function deleteProduct() {
+                if (selectedIndex < 0 || products.length === 0) {
+                    setStatus("沒有可刪除的商品");
+                    return;
+                }
+                products.splice(selectedIndex, 1);
+                selectedIndex = Math.min(selectedIndex, products.length - 1);
+                applyFilter();
+                if (products.length > 0) {
+                    selectProduct(filteredIndexes[0] ?? selectedIndex);
+                } else {
+                    clearForm();
+                    renderRows();
+                }
+                setStatus("已刪除商品");
+            }
+
+            function cancelEdit() {
+                if (selectedIndex >= 0 && products[selectedIndex]) {
+                    fillForm(products[selectedIndex]);
+                    setStatus("已取消編輯並還原目前商品");
+                } else if (filteredIndexes.length > 0) {
+                    selectProduct(filteredIndexes[0]);
+                    setStatus("已取消新增");
+                } else {
+                    clearForm();
+                    setStatus("已取消");
+                }
+            }
+
+            function applyFilter() {
+                var keyword = search.value.trim().toLowerCase();
+                filteredIndexes = products
+                    .map(function (_, index) { return index; })
+                    .filter(function (index) {
+                        if (!keyword) {
+                            return true;
+                        }
+                        return fields.some(function (field) {
+                            return String(products[index][field] || "").toLowerCase().indexOf(keyword) >= 0;
+                        });
+                    });
+                if (filteredIndexes.indexOf(selectedIndex) < 0) {
+                    selectedIndex = filteredIndexes.length > 0 ? filteredIndexes[0] : -1;
+                }
+                renderRows();
+            }
+
+            function moveSelection(action) {
+                if (filteredIndexes.length === 0) {
+                    selectedIndex = -1;
+                    clearForm();
+                    setStatus("沒有符合條件的商品");
+                    return;
+                }
+                var position = filteredIndexes.indexOf(selectedIndex);
+                if (position < 0) {
+                    position = 0;
+                }
+                if (action === "first") {
+                    position = 0;
+                } else if (action === "previous") {
+                    position = Math.max(0, position - 1);
+                } else if (action === "next") {
+                    position = Math.min(filteredIndexes.length - 1, position + 1);
+                } else if (action === "last") {
+                    position = filteredIndexes.length - 1;
+                }
+                selectProduct(filteredIndexes[position]);
+                setStatus((position + 1) + "/" + filteredIndexes.length);
+            }
+
+            function setStatus(message) {
+                status.textContent = message;
+            }
+
+            function escapeHtml(value) {
+                return String(value || "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
+            settingsToggle.addEventListener("click", function () {
+                var isHidden = settingsPanel.hasAttribute("hidden");
+                settingsPanel.toggleAttribute("hidden", !isHidden);
+                settingsToggle.setAttribute("aria-expanded", isHidden ? "true" : "false");
+            });
+
+            resetColumns.addEventListener("click", function () {
+                columns = defaultColumns.map(function (column) {
+                    return Object.assign({}, column);
+                });
+                renderAll();
+            });
+
+            document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                var action = event.detail.action;
+                if (action === "create") {
+                    event.preventDefault();
+                    createProduct();
+                } else if (action === "edit") {
+                    event.preventDefault();
+                    saveProduct();
+                } else if (action === "copy") {
+                    event.preventDefault();
+                    copyProduct();
+                } else if (action === "cancel") {
+                    event.preventDefault();
+                    cancelEdit();
+                } else if (action === "delete") {
+                    event.preventDefault();
+                    deleteProduct();
+                } else if (action === "find") {
+                    event.preventDefault();
+                    search.focus();
+                    search.select();
+                    applyFilter();
+                } else if (["first", "previous", "next", "last"].indexOf(action) >= 0) {
+                    event.preventDefault();
+                    moveSelection(action);
+                }
+            });
+
+            search.addEventListener("input", applyFilter);
+            renderAll();
+            selectProduct(0);
+        })();
+    </script>
+}
