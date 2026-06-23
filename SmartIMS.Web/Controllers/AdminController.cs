@@ -4,6 +4,7 @@ using SmartIMS.Web.Models;
 using SmartIMS.Web.Security;
 using SmartIMS.Web.Services;
 using SmartIMS.Web.ViewModels;
+using System.Security.Claims;
 
 namespace SmartIMS.Web.Controllers;
 
@@ -31,9 +32,9 @@ public sealed class AdminController : Controller
 
     [RequirePermission("ADMIN_USERS_MANAGE")]
     [HttpGet]
-    public IActionResult CreateUser()
+    public async Task<IActionResult> CreateUser()
     {
-        return View("EditUser", new AdminUserEditViewModel());
+        return View("EditUser", await CreateUserEditModelAsync(new AdminUserEditViewModel()));
     }
 
     [RequirePermission("ADMIN_USERS_MANAGE")]
@@ -41,7 +42,12 @@ public sealed class AdminController : Controller
     public async Task<IActionResult> EditUser(long id)
     {
         var user = await _adminService.GetUserForEditAsync(id);
-        return user is null ? NotFound() : View(user);
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        return View(await CreateUserEditModelAsync(user));
     }
 
     [RequirePermission("ADMIN_USERS_MANAGE")]
@@ -54,12 +60,23 @@ public sealed class AdminController : Controller
             ModelState.AddModelError(nameof(model.Password), "新增使用者時必須輸入密碼");
         }
 
+        if (model.AppUserId.HasValue && IsCurrentUser(model.AppUserId.Value))
+        {
+            var currentRoleIds = await _permissionService.GetUserRoleIdsAsync(model.AppUserId.Value);
+            if (!currentRoleIds.SetEquals(model.SelectedRoleIds))
+            {
+                ModelState.AddModelError(nameof(model.SelectedRoleIds), "不可變更目前登入帳號的所屬組別，避免失去管理權限");
+            }
+        }
+
         if (!ModelState.IsValid)
         {
+            model = await CreateUserEditModelAsync(model);
             return View("EditUser", model);
         }
 
-        await _adminService.SaveUserAsync(model);
+        var appUserId = await _adminService.SaveUserAsync(model);
+        await _permissionService.ReplaceUserRolesAsync(appUserId, model.SelectedRoleIds);
         TempData["StatusMessage"] = "使用者資料已儲存";
         return RedirectToAction(nameof(Users));
     }
@@ -80,36 +97,41 @@ public sealed class AdminController : Controller
         return RedirectToAction(nameof(Users));
     }
 
-    [RequirePermission("PAGE_ADMIN_PERMISSIONS")]
-    [HttpGet]
-    public async Task<IActionResult> Permissions(long? userId)
+    [RequirePermission("ADMIN_USERS_MANAGE")]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeactivateUser(long id)
     {
-        var users = await _adminService.GetUsersAsync();
-        var selectedUser = userId.HasValue ? users.FirstOrDefault(user => user.AppUserId == userId.Value) : users.FirstOrDefault();
-
-        if (selectedUser is null)
+        var currentUserIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (long.TryParse(currentUserIdValue, out var currentUserId) && currentUserId == id)
         {
-            return View(new UserPermissionEditViewModel { Permissions = await _permissionService.GetAllPermissionsAsync() });
+            return BadRequest(new { message = "不可停用目前登入中的帳號" });
         }
 
-        return View(new UserPermissionEditViewModel
+        var updated = await _adminService.DeactivateUserAsync(id);
+        if (!updated)
         {
-            AppUserId = selectedUser.AppUserId,
-            UserName = selectedUser.UserName,
-            DisplayName = selectedUser.DisplayName,
-            Permissions = await _permissionService.GetAllPermissionsAsync(),
-            SelectedPermissionIds = await _permissionService.GetUserPermissionIdsAsync(selectedUser.AppUserId)
-        });
+            return NotFound(new { message = "找不到要停用的使用者" });
+        }
+
+        return Ok(new { message = "使用者已停用" });
+    }
+
+    [RequirePermission("PAGE_ADMIN_PERMISSIONS")]
+    [HttpGet]
+    public async Task<IActionResult> Permissions(long? roleId)
+    {
+        return View(await _permissionService.GetRolePermissionEditModelAsync(roleId));
     }
 
     [RequirePermission("ADMIN_PERMISSIONS_MANAGE")]
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SavePermissions(long appUserId, long[] permissionIds)
+    public async Task<IActionResult> SavePermissions(long roleId, long[] pageActionIds)
     {
-        await _permissionService.ReplaceUserPermissionsAsync(appUserId, permissionIds);
-        TempData["StatusMessage"] = "使用者權限已儲存，重新登入後生效";
-        return RedirectToAction(nameof(Permissions), new { userId = appUserId });
+        await _permissionService.ReplaceRolePermissionsAsync(roleId, pageActionIds);
+        TempData["StatusMessage"] = "組別權限已儲存，使用者重新登入後生效";
+        return RedirectToAction(nameof(Permissions), new { roleId });
     }
 
     [RequirePermission("PAGE_ADMIN_BRANDING")]
@@ -185,5 +207,22 @@ public sealed class AdminController : Controller
         await using var stream = System.IO.File.Create(absolutePath);
         await file.CopyToAsync(stream);
         return relativePath;
+    }
+
+    private async Task<AdminUserEditViewModel> CreateUserEditModelAsync(AdminUserEditViewModel model)
+    {
+        model.AvailableRoles = await _permissionService.GetRolesAsync();
+        if (model.AppUserId.HasValue && model.SelectedRoleIds.Count == 0)
+        {
+            model.SelectedRoleIds = await _permissionService.GetUserRoleIdsAsync(model.AppUserId.Value);
+        }
+
+        return model;
+    }
+
+    private bool IsCurrentUser(long appUserId)
+    {
+        var currentUserIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return long.TryParse(currentUserIdValue, out var currentUserId) && currentUserId == appUserId;
     }
 }

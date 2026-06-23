@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = Model.AppUserId is null ? "新增使用者" : "編輯使用者";
     ViewData["ToolbarPageCode"] = "PAGE_ADMIN_USERS";
-    ViewData["ToolbarActions"] = "edit,find,print";
+    ViewData["ToolbarActions"] = "edit,find";
 }
 
 <div class="page-title-row">
@@ -43,6 +43,34 @@
         <div class="form-check mb-3">
             <input asp-for="IsActive" class="form-check-input" />
             <label asp-for="IsActive" class="form-check-label"></label>
+        </div>
+        <div class="mb-3">
+            <label asp-for="SelectedRoleIds" class="form-label"></label>
+            <div class="border rounded p-2 role-check-list">
+                @if (Model.AvailableRoles.Count == 0)
+                {
+                    <div class="text-muted small">尚未建立可用組別。</div>
+                }
+                else
+                {
+                    foreach (var role in Model.AvailableRoles.Where(role => role.IsActive))
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   id="role-@role.RoleId"
+                                   name="SelectedRoleIds"
+                                   value="@role.RoleId"
+                                   checked="@Model.SelectedRoleIds.Contains(role.RoleId)" />
+                            <label class="form-check-label" for="role-@role.RoleId">
+                                @role.RoleName
+                                <span class="text-muted small">(@role.RoleCode)</span>
+                            </label>
+                        </div>
+                    }
+                }
+            </div>
+            <span asp-validation-for="SelectedRoleIds" class="text-danger small"></span>
         </div>
         <button type="submit" class="btn btn-sm btn-primary">儲存</button>
     </form>

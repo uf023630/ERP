@@ -36,3 +36,36 @@ public sealed class RequirePermissionFilter : IAuthorizationFilter
         }
     }
 }
+
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
+public sealed class RequireAnyPermissionAttribute : TypeFilterAttribute
+{
+    public RequireAnyPermissionAttribute(params string[] permissionCodes) : base(typeof(RequireAnyPermissionFilter))
+    {
+        Arguments = [permissionCodes];
+    }
+}
+
+public sealed class RequireAnyPermissionFilter : IAuthorizationFilter
+{
+    private readonly IReadOnlyList<string> _permissionCodes;
+
+    public RequireAnyPermissionFilter(string[] permissionCodes)
+    {
+        _permissionCodes = permissionCodes;
+    }
+
+    public void OnAuthorization(AuthorizationFilterContext context)
+    {
+        if (context.HttpContext.User.Identity?.IsAuthenticated != true)
+        {
+            context.Result = new ChallengeResult();
+            return;
+        }
+
+        if (!_permissionCodes.Any(code => context.HttpContext.User.HasClaim(AuthService.PermissionClaimType, code)))
+        {
+            context.Result = new ForbidResult();
+        }
+    }
+}

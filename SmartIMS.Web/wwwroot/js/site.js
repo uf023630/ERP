@@ -55,7 +55,7 @@
       var permissionSuffix = button.dataset.permissionSuffix;
       var actionPermission = pageCode && permissionSuffix ? pageCode + "_" + permissionSuffix : "";
       var isSupported = supportedActions.has(action);
-      var isAllowed = !actionPermission || permissions.has(actionPermission) || permissions.has(pageCode);
+      var isAllowed = !actionPermission || permissions.has(actionPermission);
 
       button.disabled = !(isSupported && isAllowed);
     });

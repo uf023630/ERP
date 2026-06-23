@@ -2,16 +2,35 @@
 @{
     ViewData["Title"] = "使用者管理";
     ViewData["ToolbarPageCode"] = "PAGE_ADMIN_USERS";
-    ViewData["ToolbarActions"] = "create,delete,edit,find,print,first,previous,next,last";
+    ViewData["ToolbarActions"] = "create,delete,edit,find,first,previous,next,last";
+    var createUrl = Url.Action("CreateUser", "Admin") ?? "";
+    var editUrlTemplate = Url.Action("EditUser", "Admin", new { id = "__id__" }) ?? "";
+    var deactivateUrl = Url.Action("DeactivateUser", "Admin") ?? "";
 }
 
 <div class="page-title-row">
     <h1>使用者管理</h1>
-    <a class="btn btn-sm btn-primary" asp-action="CreateUser">新增使用者</a>
+    <span class="text-muted small">選取清單資料後，可使用上方功能區操作。</span>
 </div>
 
-<div class="win-panel">
-    <table class="table table-sm table-bordered win-table align-middle">
+<div class="win-panel" data-users-page>
+    <form class="d-none" aria-hidden="true">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <div class="row g-2 align-items-center mb-2">
+        <div class="col-md-4">
+            <input id="userSearch"
+                   class="form-control form-control-sm"
+                   type="search"
+                   placeholder="搜尋使用者、姓名、部門、Email 或組別" />
+        </div>
+        <div class="col-md-8">
+            <div class="users-toolbar-status text-muted small" data-users-status></div>
+        </div>
+    </div>
+
+    <table class="table table-sm table-bordered win-table align-middle" data-users-table>
         <thead>
             <tr>
                 <th>帳號</th>
@@ -19,23 +38,26 @@
                 <th>部門</th>
                 <th>Email</th>
                 <th>狀態</th>
-                <th>權限摘要</th>
+                <th>所屬組別</th>
                 <th class="text-end">操作</th>
             </tr>
         </thead>
         <tbody>
             @foreach (var user in Model.Users)
             {
-                <tr>
+                var searchText = string.Join(" ", user.UserName, user.DisplayName, user.Department, user.Email, user.RoleNames);
+                <tr data-user-id="@user.AppUserId"
+                    data-user-active="@user.IsActive.ToString().ToLowerInvariant()"
+                    data-user-search-text="@searchText">
                     <td>@user.UserName</td>
                     <td>@user.DisplayName</td>
                     <td>@user.Department</td>
                     <td>@user.Email</td>
-                    <td>@(user.IsActive ? "啟用" : "停用")</td>
-                    <td class="text-truncate permission-summary">@user.PermissionNames</td>
+                    <td data-user-status>@(user.IsActive ? "啟用" : "停用")</td>
+                    <td class="text-truncate permission-summary">@user.RoleNames</td>
                     <td class="text-end">
-                        <a class="btn btn-sm btn-outline-secondary" asp-action="EditUser" asp-route-id="@user.AppUserId">編輯</a>
-                        <a class="btn btn-sm btn-outline-secondary" asp-action="Permissions" asp-route-userId="@user.AppUserId">權限</a>
+                        <a class="btn btn-sm btn-outline-secondary" asp-action="EditUser" asp-route-id="@user.AppUserId">修改</a>
+                        <a class="btn btn-sm btn-outline-secondary" asp-action="Permissions">權限</a>
                     </td>
                 </tr>
             }
@@ -65,3 +87,214 @@
         </div>
     </form>
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var root = document.querySelector("[data-users-page]");
+            if (!root) {
+                return;
+            }
+
+            var table = root.querySelector("[data-users-table]");
+            var search = document.getElementById("userSearch");
+            var status = root.querySelector("[data-users-status]");
+            var createUrl = "@createUrl";
+            var editUrlTemplate = "@editUrlTemplate";
+            var deactivateUrl = "@deactivateUrl";
+
+            function allRows() {
+                return Array.prototype.slice.call(table.querySelectorAll("tbody tr[data-user-id]"));
+            }
+
+            function visibleRows() {
+                return allRows().filter(function (row) {
+                    return !row.hidden;
+                });
+            }
+
+            function selectedRow() {
+                return allRows().find(function (row) {
+                    return row.classList.contains("is-selected");
+                }) || null;
+            }
+
+            function selectRow(row) {
+                allRows().forEach(function (item) {
+                    item.classList.toggle("is-selected", item === row);
+                });
+
+                if (row) {
+                    row.scrollIntoView({ block: "nearest" });
+                }
+            }
+
+            function selectFirstVisible() {
+                var rows = visibleRows();
+                selectRow(rows.length > 0 ? rows[0] : null);
+                updateStatus();
+            }
+
+            function updateStatus(message) {
+                if (!status) {
+                    return;
+                }
+
+                if (message) {
+                    status.textContent = message;
+                    return;
+                }
+
+                var rows = visibleRows();
+                var row = selectedRow();
+                var index = row ? rows.indexOf(row) : -1;
+                status.textContent = rows.length === 0
+                    ? "沒有符合條件的使用者"
+                    : "共 " + rows.length + " 筆" + (index >= 0 ? "，目前第 " + (index + 1) + " 筆" : "");
+            }
+
+            function applyFilter() {
+                var keyword = search.value.trim().toLowerCase();
+                allRows().forEach(function (row) {
+                    var text = (row.dataset.userSearchText || "").toLowerCase();
+                    row.hidden = keyword.length > 0 && text.indexOf(keyword) < 0;
+                });
+
+                var row = selectedRow();
+                if (!row || row.hidden) {
+                    selectFirstVisible();
+                } else {
+                    updateStatus();
+                }
+            }
+
+            function moveSelection(action) {
+                var rows = visibleRows();
+                if (rows.length === 0) {
+                    selectRow(null);
+                    updateStatus();
+                    return;
+                }
+
+                var index = rows.indexOf(selectedRow());
+                if (index < 0) {
+                    index = 0;
+                }
+
+                if (action === "first") {
+                    index = 0;
+                } else if (action === "previous") {
+                    index = Math.max(0, index - 1);
+                } else if (action === "next") {
+                    index = Math.min(rows.length - 1, index + 1);
+                } else if (action === "last") {
+                    index = rows.length - 1;
+                }
+
+                selectRow(rows[index]);
+                updateStatus();
+            }
+
+            function editSelected() {
+                var row = selectedRow();
+                if (!row) {
+                    updateStatus("請先選取使用者");
+                    return;
+                }
+
+                window.location.href = editUrlTemplate.replace("__id__", row.dataset.userId);
+            }
+
+            async function deactivateSelected() {
+                var row = selectedRow();
+                if (!row) {
+                    updateStatus("請先選取使用者");
+                    return;
+                }
+
+                if (row.dataset.userActive === "false") {
+                    updateStatus("此使用者已停用");
+                    return;
+                }
+
+                var userName = row.cells.length > 0 ? row.cells[0].textContent.trim() : "";
+                if (!window.confirm("確定要停用使用者 " + userName + "？")) {
+                    updateStatus("已取消停用");
+                    return;
+                }
+
+                var body = new URLSearchParams();
+                body.set("id", row.dataset.userId);
+
+                try {
+                    var response = await fetch(deactivateUrl, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                            "RequestVerificationToken": getAntiForgeryToken()
+                        },
+                        body: body.toString()
+                    });
+                    var result = await response.json().catch(function () {
+                        return {};
+                    });
+
+                    if (!response.ok) {
+                        updateStatus(result.message || "停用失敗");
+                        return;
+                    }
+
+                    row.dataset.userActive = "false";
+                    var statusCell = row.querySelector("[data-user-status]");
+                    if (statusCell) {
+                        statusCell.textContent = "停用";
+                    }
+                    updateStatus(result.message || "使用者已停用");
+                } catch {
+                    updateStatus("停用失敗，請稍後再試");
+                }
+            }
+
+            function getAntiForgeryToken() {
+                var token = root.querySelector('input[name="__RequestVerificationToken"]');
+                return token ? token.value : "";
+            }
+
+            table.addEventListener("click", function (event) {
+                var row = event.target.closest("tbody tr[data-user-id]");
+                if (!row) {
+                    return;
+                }
+
+                selectRow(row);
+                updateStatus();
+            });
+
+            search.addEventListener("input", applyFilter);
+
+            document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                var action = event.detail.action;
+                if (action === "create") {
+                    event.preventDefault();
+                    window.location.href = createUrl;
+                } else if (action === "edit") {
+                    event.preventDefault();
+                    editSelected();
+                } else if (action === "delete") {
+                    event.preventDefault();
+                    deactivateSelected();
+                } else if (action === "find") {
+                    event.preventDefault();
+                    search.focus();
+                    search.select();
+                    applyFilter();
+                } else if (["first", "previous", "next", "last"].indexOf(action) >= 0) {
+                    event.preventDefault();
+                    moveSelection(action);
+                }
+            });
+
+            selectFirstVisible();
+        })();
+    </script>
+}

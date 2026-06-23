@@ -16,7 +16,7 @@ public sealed record AdminUserRow(
     string? Email,
     bool IsActive,
     DateTime? LastLoginAt,
-    string PermissionNames);
+    string RoleNames);
 
 public sealed class AdminUserEditViewModel
 {
@@ -43,16 +43,42 @@ public sealed class AdminUserEditViewModel
     [DataType(DataType.Password)]
     [Display(Name = "密碼")]
     public string? Password { get; set; }
+
+    [Display(Name = "所屬組別")]
+    public HashSet<long> SelectedRoleIds { get; set; } = [];
+
+    public IReadOnlyList<RoleOptionViewModel> AvailableRoles { get; set; } = [];
 }
 
-public sealed class UserPermissionEditViewModel
+public sealed record RoleOptionViewModel(
+    long RoleId,
+    string RoleCode,
+    string RoleName,
+    string? Description,
+    bool IsSystemRole,
+    bool IsActive);
+
+public sealed class RolePermissionEditViewModel
 {
-    public long AppUserId { get; set; }
-    public string UserName { get; set; } = "";
-    public string DisplayName { get; set; } = "";
-    public HashSet<long> SelectedPermissionIds { get; set; } = [];
-    public IReadOnlyList<PermissionDefinition> Permissions { get; set; } = [];
+    public long? SelectedRoleId { get; set; }
+    public string SelectedRoleName { get; set; } = "";
+    public IReadOnlyList<RoleOptionViewModel> Roles { get; set; } = [];
+    public IReadOnlyList<RolePermissionPageViewModel> Pages { get; set; } = [];
+    public HashSet<long> SelectedPageActionIds { get; set; } = [];
 }
+
+public sealed record RolePermissionPageViewModel(
+    long PageId,
+    string PageCode,
+    string PageName,
+    string MenuGroup,
+    IReadOnlyList<RolePermissionActionViewModel> Actions);
+
+public sealed record RolePermissionActionViewModel(
+    long PageActionId,
+    string ActionCode,
+    string ActionName,
+    string PermissionCode);
 
 public sealed class BrandingViewModel
 {

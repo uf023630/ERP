@@ -1,19 +1,22 @@
 @model SmartIMS.Web.ViewModels.MaterialLayoutTestViewModel
+@using System.Text.Json
 @{
     ViewData["Title"] = "商品材質管理";
-    ViewData["ToolbarPageCode"] = "PAGE_COMPONENT_TEST";
+    ViewData["ToolbarPageCode"] = "PAGE_PRODUCT_MATERIAL";
     ViewData["ToolbarActions"] = "create,delete,copy,edit,cancel,find,print,first,previous,next,last";
+    var materialsJson = JsonSerializer.Serialize(Model.Materials);
 }
 
 <div class="page-title-row">
     <h1>商品材質管理</h1>
-    <span class="text-muted small">Layout 測試資料，不連接資料庫</span>
+    <span class="text-muted small">正式資料，連接資料庫</span>
 </div>
 
 <div class="material-layout-test" data-material-layout-test>
     <div class="win-panel mb-2">
         <div class="section-caption">材質明細</div>
         <form id="materialForm" class="compact-form material-detail-form">
+            <input id="productMaterialId" name="ProductMaterialId" type="hidden" />
             <div class="row g-2 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label" for="materialCode">材質編碼</label>
@@ -53,22 +56,8 @@
             var search = document.getElementById("materialSearch");
             var status = root.querySelector("[data-material-status]");
             var selectedIndex = 0;
-            var materials = readMaterialsFromTable();
+            var materials = @Html.Raw(materialsJson);
             var filteredIndexes = materials.map(function (_, index) { return index; });
-
-            function readMaterialsFromTable() {
-                return Array.prototype.slice.call(tableBody.querySelectorAll("tr")).map(function (row) {
-                    return {
-                        MaterialCode: getCellText(row, "MaterialCode"),
-                        MaterialName: getCellText(row, "MaterialName")
-                    };
-                });
-            }
-
-            function getCellText(row, key) {
-                var cell = row.querySelector('[data-col-key="' + key + '"]');
-                return cell ? cell.textContent.trim() : "";
-            }
 
             function renderRows() {
                 tableBody.innerHTML = "";
@@ -119,11 +108,13 @@
             }
 
             function fillForm(material) {
+                form.elements.ProductMaterialId.value = material.ProductMaterialId || "";
                 form.elements.MaterialCode.value = material.MaterialCode || "";
                 form.elements.MaterialName.value = material.MaterialName || "";
             }
 
             function clearForm() {
+                form.elements.ProductMaterialId.value = "";
                 form.elements.MaterialCode.value = "";
                 form.elements.MaterialName.value = "";
                 form.elements.MaterialCode.focus();
@@ -131,6 +122,7 @@
 
             function collectForm() {
                 return {
+                    ProductMaterialId: form.elements.ProductMaterialId.value ? Number(form.elements.ProductMaterialId.value) : null,
                     MaterialCode: form.elements.MaterialCode.value.trim(),
                     MaterialName: form.elements.MaterialName.value.trim()
                 };
@@ -150,6 +142,7 @@
                 }
 
                 fillForm({
+                    ProductMaterialId: null,
                     MaterialCode: "",
                     MaterialName: materials[selectedIndex].MaterialName + " 複本"
                 });
@@ -159,7 +152,7 @@
                 setStatus("已複製目前材質，按修改圖示加入清單");
             }
 
-            function saveMaterial() {
+            async function saveMaterial() {
                 var material = collectForm();
                 if (!material.MaterialCode || !material.MaterialName) {
                     setStatus("材質編碼與材質名稱不可空白");
@@ -167,22 +160,48 @@
                     return;
                 }
 
-                if (selectedIndex >= 0) {
-                    materials[selectedIndex] = material;
+                var result = await postJson("@Url.Action("SaveMaterial", "Home")", material);
+                if (!result.ok) {
+                    setStatus(result.message || "儲存失敗");
+                    return;
+                }
+
+                var saved = result.data;
+                if (material.ProductMaterialId) {
+                    var existingIndex = materials.findIndex(function (item) {
+                        return item.ProductMaterialId === saved.ProductMaterialId;
+                    });
+                    if (existingIndex >= 0) {
+                        materials[existingIndex] = saved;
+                        selectedIndex = existingIndex;
+                    }
                     setStatus("已修改目前材質");
                 } else {
-                    materials.push(material);
+                    materials.push(saved);
                     selectedIndex = materials.length - 1;
                     setStatus("已新增材質");
                 }
-
                 applyFilter();
                 selectMaterial(selectedIndex);
             }
 
-            function deleteMaterial() {
+            async function deleteMaterial() {
                 if (selectedIndex < 0 || materials.length === 0) {
                     setStatus("沒有可刪除的材質");
+                    return;
+                }
+
+                var material = materials[selectedIndex];
+                if (!material.ProductMaterialId) {
+                    setStatus("目前材質尚未儲存，無法刪除");
+                    return;
+                }
+
+                var result = await postJson("@Url.Action("DeleteMaterial", "Home")", {
+                    ProductMaterialId: material.ProductMaterialId
+                });
+                if (!result.ok) {
+                    setStatus(result.message || "刪除失敗");
                     return;
                 }
 
@@ -260,6 +279,37 @@
 
             function setStatus(message) {
                 status.textContent = message;
+            }
+
+            async function postJson(url, payload) {
+                try {
+                    var response = await fetch(url, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "RequestVerificationToken": getAntiForgeryToken()
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    var data = await response.json().catch(function () {
+                        return {};
+                    });
+                    return {
+                        ok: response.ok,
+                        data: data,
+                        message: data.message
+                    };
+                } catch {
+                    return {
+                        ok: false,
+                        message: "無法連線至伺服器"
+                    };
+                }
+            }
+
+            function getAntiForgeryToken() {
+                var token = root.querySelector('input[name="__RequestVerificationToken"]');
+                return token ? token.value : "";
             }
 
             document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {

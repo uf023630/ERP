@@ -1,8 +1,19 @@
-@model SmartIMS.Web.ViewModels.UserPermissionEditViewModel
+@model SmartIMS.Web.ViewModels.RolePermissionEditViewModel
 @{
     ViewData["Title"] = "權限設定";
     ViewData["ToolbarPageCode"] = "PAGE_ADMIN_PERMISSIONS";
-    ViewData["ToolbarActions"] = "edit,find,print,first,previous,next,last";
+    ViewData["ToolbarActions"] = "edit,find,first,previous,next,last";
+    var actionOrder = new[] { "NAVIGATE", "CREATE", "DELETE", "COPY", "EDIT", "CANCEL", "FIND", "PRINT", "FIRST", "PREVIOUS", "NEXT", "LAST" };
+    var actionCodes = Model.Pages
+        .SelectMany(page => page.Actions)
+        .GroupBy(action => action.ActionCode)
+        .Select(group => group.First())
+        .OrderBy(action =>
+        {
+            var index = Array.IndexOf(actionOrder, action.ActionCode);
+            return index < 0 ? int.MaxValue : index;
+        })
+        .ToList();
 }
 
 <div class="page-title-row">
@@ -10,46 +21,82 @@
 </div>
 
 <div class="win-panel mb-2">
-    <div class="row g-2 align-items-end compact-form">
+    <form asp-action="Permissions" method="get" class="row g-2 align-items-end compact-form">
         <div class="col-md-4">
-            <label class="form-label">目前使用者</label>
-            <input class="form-control form-control-sm" value="@Model.UserName - @Model.DisplayName" readonly />
+            <label class="form-label">組別</label>
+            <select name="roleId" class="form-select form-select-sm" onchange="this.form.submit()">
+                @foreach (var role in Model.Roles)
+                {
+                    <option value="@role.RoleId" selected="@(Model.SelectedRoleId == role.RoleId)">
+                        @role.RoleName
+                    </option>
+                }
+            </select>
         </div>
-        <div class="col-md-2">
-            <a class="btn btn-sm btn-outline-secondary" asp-action="Users">選擇使用者</a>
+        <div class="col-md-8">
+            <div class="text-muted small">
+                勾選組別可使用的頁面與功能。未支援的功能不會出現在該頁設定中。
+            </div>
         </div>
-    </div>
+    </form>
 </div>
 
 <div class="win-panel">
-    <form asp-action="SavePermissions" method="post">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="appUserId" value="@Model.AppUserId" />
-        <table class="table table-sm table-bordered win-table align-middle">
-            <thead>
-                <tr>
-                    <th style="width: 42px;">使用</th>
-                    <th>權限代碼</th>
-                    <th>名稱</th>
-                    <th>模組</th>
-                    <th>說明</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var permission in Model.Permissions)
-                {
-                    <tr>
-                        <td class="text-center">
-                            <input class="form-check-input" type="checkbox" name="permissionIds" value="@permission.PermissionId" checked="@Model.SelectedPermissionIds.Contains(permission.PermissionId)" />
-                        </td>
-                        <td><code>@permission.PermissionCode</code></td>
-                        <td>@permission.PermissionName</td>
-                        <td>@permission.ModuleCode / @permission.ActionCode</td>
-                        <td>@permission.Description</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-        <button type="submit" class="btn btn-sm btn-primary">儲存權限</button>
-    </form>
+    @if (Model.SelectedRoleId is null)
+    {
+        <div class="text-muted">尚未建立可設定的組別。</div>
+    }
+    else
+    {
+        <form asp-action="SavePermissions" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="roleId" value="@Model.SelectedRoleId" />
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered win-table align-middle">
+                    <thead>
+                        <tr>
+                            <th>模組</th>
+                            <th>頁面</th>
+                            @foreach (var action in actionCodes)
+                            {
+                                <th class="text-center">@action.ActionName</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var permissionPage in Model.Pages)
+                        {
+                            <tr>
+                                <td>@permissionPage.MenuGroup</td>
+                                <td>
+                                    <div>@permissionPage.PageName</div>
+                                    <code class="small">@permissionPage.PageCode</code>
+                                </td>
+                                @foreach (var action in actionCodes)
+                                {
+                                    var pageAction = permissionPage.Actions.FirstOrDefault(item => item.ActionCode == action.ActionCode);
+                                    <td class="text-center">
+                                        @if (pageAction is null)
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                        else
+                                        {
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   name="pageActionIds"
+                                                   value="@pageAction.PageActionId"
+                                                   title="@pageAction.PermissionCode"
+                                                   checked="@Model.SelectedPageActionIds.Contains(pageAction.PageActionId)" />
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <button type="submit" class="btn btn-sm btn-primary">儲存組別權限</button>
+        </form>
+    }
 </div>

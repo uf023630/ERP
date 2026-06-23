@@ -22,14 +22,14 @@ public sealed class AdminService
 
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT u.AppUserID, u.UserName, u.DisplayName, u.Department, u.Email, u.IsActive, u.LastLoginAt, COALESCE(permissions.PermissionNames, N'') AS PermissionNames
+            SELECT u.AppUserID, u.UserName, u.DisplayName, u.Department, u.Email, u.IsActive, u.LastLoginAt, COALESCE(roles.RoleNames, N'') AS RoleNames
             FROM dbo.AppUser u
             OUTER APPLY (
-              SELECT STRING_AGG(CAST(p.PermissionName AS NVARCHAR(MAX)), N'、') AS PermissionNames
-              FROM dbo.UserPermission up
-              INNER JOIN dbo.AppPermission p ON p.PermissionID = up.PermissionID AND p.IsActive = 1
-              WHERE up.AppUserID = u.AppUserID
-            ) permissions
+              SELECT STRING_AGG(CAST(r.RoleName AS NVARCHAR(MAX)), N'、') AS RoleNames
+              FROM dbo.UserRole ur
+              INNER JOIN dbo.AppRole r ON r.RoleID = ur.RoleID AND r.IsActive = 1
+              WHERE ur.AppUserID = u.AppUserID
+            ) roles
             ORDER BY u.AppUserID;
             """;
 
@@ -130,5 +130,19 @@ public sealed class AdminService
         command.Parameters.AddWithValue("@AppUserID", appUserId);
         command.Parameters.AddWithValue("@PasswordHash", PasswordHasher.HashPassword(password));
         await command.ExecuteNonQueryAsync();
+    }
+
+    public async Task<bool> DeactivateUserAsync(long appUserId)
+    {
+        await using var connection = _connectionFactory.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE dbo.AppUser
+            SET IsActive = 0, UpdatedAt = SYSUTCDATETIME()
+            WHERE AppUserID = @AppUserID;
+            """;
+        command.Parameters.AddWithValue("@AppUserID", appUserId);
+        return await command.ExecuteNonQueryAsync() > 0;
     }
 }
