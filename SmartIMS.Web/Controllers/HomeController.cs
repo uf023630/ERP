@@ -65,6 +65,19 @@ public class HomeController : Controller
         return View(model);
     }
 
+    [RequirePermission("PAGE_SUPPLIER")]
+    public async Task<IActionResult> SupplierLayoutTest()
+    {
+        var model = SupplierLayoutTestViewModel.Create();
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (long.TryParse(userIdValue, out var appUserId))
+        {
+            await _listViewSettingsService.ApplySettingsAsync(appUserId, model.ListView);
+        }
+
+        return View(model);
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     [RequireAnyPermission("PAGE_PRODUCT_MATERIAL_CREATE", "PAGE_PRODUCT_MATERIAL_EDIT")]

@@ -653,14 +653,16 @@ body {
 
 .customer-layout-test,
 .product-layout-test,
-.material-layout-test {
+.material-layout-test,
+.supplier-layout-test {
   display: grid;
   gap: 8px;
 }
 
 .customer-list-tools,
 .product-list-tools,
-.material-list-tools {
+.material-list-tools,
+.supplier-list-tools {
   align-items: center;
   display: grid;
   gap: 8px;
@@ -670,26 +672,30 @@ body {
 
 .customer-layout-status,
 .product-layout-status,
-.material-layout-status {
+.material-layout-status,
+.supplier-layout-status {
   color: var(--app-muted);
   font-size: 12px;
 }
 
 .customer-list-frame,
 .product-list-frame,
-.material-layout-test .listview-frame {
+.material-layout-test .listview-frame,
+.supplier-layout-test .listview-frame {
   max-height: 260px;
   overflow: auto;
 }
 
 .customer-list-table tbody tr,
 .product-list-table tbody tr,
-.material-layout-test .listview-table tbody tr {
+.material-layout-test .listview-table tbody tr,
+.supplier-layout-test .listview-table tbody tr {
   cursor: pointer;
 }
 
 .customer-detail-form textarea,
-.product-detail-form textarea {
+.product-detail-form textarea,
+.supplier-detail-form textarea {
   resize: vertical;
 }
 

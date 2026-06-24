@@ -1,0 +1,363 @@
+@model SmartIMS.Web.ViewModels.SupplierLayoutTestViewModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "供應商管理";
+    ViewData["ToolbarPageCode"] = "PAGE_SUPPLIER";
+    ViewData["ToolbarActions"] = "create,delete,copy,edit,cancel,find,print,first,previous,next,last";
+    var suppliersJson = JsonSerializer.Serialize(Model.Suppliers);
+}
+
+<div class="page-title-row">
+    <h1>供應商管理</h1>
+    <span class="text-muted small">Layout 測試資料，不連接資料庫</span>
+</div>
+
+<div class="supplier-layout-test" data-supplier-layout-test>
+    <div class="win-panel mb-2">
+        <div class="section-caption">供應商明細</div>
+        <form id="supplierForm" class="compact-form supplier-detail-form">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label class="form-label" for="supplierCode">供應商編號</label>
+                    <input id="supplierCode" name="SupplierCode" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="supplierName">供應商名稱</label>
+                    <input id="supplierName" name="SupplierName" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="shortName">供應商簡稱</label>
+                    <input id="shortName" name="ShortName" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="taxId">統一編號</label>
+                    <input id="taxId" name="TaxId" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="owner">負責人</label>
+                    <input id="owner" name="Owner" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="companyPhone">公司電話</label>
+                    <input id="companyPhone" name="CompanyPhone" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="companyFax">公司傳真</label>
+                    <input id="companyFax" name="CompanyFax" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="paymentMethod">付款方式</label>
+                    <select id="paymentMethod" name="PaymentMethod" class="form-select form-select-sm">
+                        <option value="月結 30 天">月結 30 天</option>
+                        <option value="月結 60 天">月結 60 天</option>
+                        <option value="匯款">匯款</option>
+                        <option value="現金">現金</option>
+                        <option value="票據">票據</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="companyAddress">公司地址</label>
+                    <input id="companyAddress" name="CompanyAddress" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="contactName">聯絡人</label>
+                    <input id="contactName" name="ContactName" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="contactPhone">聯絡人電話</label>
+                    <input id="contactPhone" name="ContactPhone" class="form-control form-control-sm" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="note">備註</label>
+                    <textarea id="note" name="Note" class="form-control form-control-sm" rows="2"></textarea>
+                </div>
+                <div class="col-12">
+                    <div class="supplier-layout-status" data-supplier-status></div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="win-panel">
+        <div class="supplier-list-tools">
+            <input id="supplierSearch" class="form-control form-control-sm" type="search" placeholder="輸入供應商編號、名稱、統編、聯絡人或電話尋找" />
+        </div>
+        <partial name="_ListView" model="Model.ListView" />
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var root = document.querySelector("[data-supplier-layout-test]");
+            if (!root) {
+                return;
+            }
+
+            var listView = root.querySelector(".listview-component");
+            var table = root.querySelector(".listview-table");
+            var tableBody = table.querySelector("tbody");
+            var form = document.getElementById("supplierForm");
+            var search = document.getElementById("supplierSearch");
+            var status = root.querySelector("[data-supplier-status]");
+            var suppliers = @Html.Raw(suppliersJson);
+            var fields = [
+                "SupplierCode",
+                "SupplierName",
+                "ShortName",
+                "TaxId",
+                "Owner",
+                "CompanyPhone",
+                "CompanyFax",
+                "CompanyAddress",
+                "PaymentMethod",
+                "ContactName",
+                "ContactPhone",
+                "Note"
+            ];
+            var selectedIndex = 0;
+            var filteredIndexes = suppliers.map(function (_, index) { return index; });
+
+            function renderRows() {
+                tableBody.innerHTML = "";
+                filteredIndexes.forEach(function (supplierIndex) {
+                    var supplier = suppliers[supplierIndex];
+                    var row = document.createElement("tr");
+                    row.dataset.supplierIndex = String(supplierIndex);
+                    row.className = supplierIndex === selectedIndex ? "is-selected" : "";
+
+                    getHeaderColumns().forEach(function (column) {
+                        var cell = document.createElement("td");
+                        cell.dataset.colKey = column.key;
+                        cell.style.width = column.width;
+                        cell.style.minWidth = column.minWidth;
+                        cell.classList.toggle("is-hidden", column.hidden);
+                        cell.textContent = supplier[column.key] || "";
+                        row.appendChild(cell);
+                    });
+
+                    row.addEventListener("click", function () {
+                        selectSupplier(supplierIndex);
+                    });
+                    tableBody.appendChild(row);
+                });
+                setStatus("共 " + filteredIndexes.length + " 筆");
+            }
+
+            function getHeaderColumns() {
+                return Array.prototype.slice.call(table.querySelectorAll("thead th[data-col-key]")).map(function (header) {
+                    return {
+                        key: header.dataset.colKey,
+                        hidden: header.classList.contains("is-hidden"),
+                        width: header.style.width || header.offsetWidth + "px",
+                        minWidth: header.style.minWidth || "80px"
+                    };
+                });
+            }
+
+            function selectSupplier(index) {
+                if (index < 0 || index >= suppliers.length) {
+                    clearForm();
+                    return;
+                }
+
+                selectedIndex = index;
+                fillForm(suppliers[selectedIndex]);
+                renderRows();
+            }
+
+            function fillForm(supplier) {
+                fields.forEach(function (field) {
+                    form.elements[field].value = supplier[field] || "";
+                });
+            }
+
+            function clearForm() {
+                fields.forEach(function (field) {
+                    form.elements[field].value = "";
+                });
+                form.elements.PaymentMethod.value = "月結 30 天";
+                form.elements.SupplierCode.focus();
+            }
+
+            function collectForm() {
+                var supplier = {};
+                fields.forEach(function (field) {
+                    supplier[field] = form.elements[field].value.trim();
+                });
+                return supplier;
+            }
+
+            function createSupplier() {
+                selectedIndex = -1;
+                clearForm();
+                renderRows();
+                setStatus("新增模式，輸入資料後按修改圖示加入清單");
+            }
+
+            function copySupplier() {
+                if (selectedIndex < 0 || suppliers.length === 0) {
+                    setStatus("沒有可複製的供應商");
+                    return;
+                }
+
+                var source = Object.assign({}, suppliers[selectedIndex]);
+                source.SupplierCode = "";
+                source.SupplierName = source.SupplierName + " 複本";
+                source.ShortName = source.ShortName + " 複本";
+                source.TaxId = "";
+                fillForm(source);
+                selectedIndex = -1;
+                renderRows();
+                form.elements.SupplierCode.focus();
+                setStatus("已複製目前供應商，按修改圖示加入清單");
+            }
+
+            function saveSupplier() {
+                var supplier = collectForm();
+                if (!supplier.SupplierCode || !supplier.SupplierName) {
+                    setStatus("供應商編號與供應商名稱不可空白");
+                    form.elements.SupplierCode.focus();
+                    return;
+                }
+
+                if (selectedIndex >= 0) {
+                    suppliers[selectedIndex] = supplier;
+                    setStatus("已修改目前供應商");
+                } else {
+                    suppliers.push(supplier);
+                    selectedIndex = suppliers.length - 1;
+                    setStatus("已新增供應商");
+                }
+
+                applyFilter();
+                selectSupplier(selectedIndex);
+            }
+
+            function deleteSupplier() {
+                if (selectedIndex < 0 || suppliers.length === 0) {
+                    setStatus("沒有可刪除的供應商");
+                    return;
+                }
+
+                suppliers.splice(selectedIndex, 1);
+                selectedIndex = Math.min(selectedIndex, suppliers.length - 1);
+                applyFilter();
+                if (filteredIndexes.length > 0) {
+                    selectSupplier(filteredIndexes[0]);
+                } else {
+                    clearForm();
+                    renderRows();
+                }
+                setStatus("已刪除供應商");
+            }
+
+            function cancelEdit() {
+                if (selectedIndex >= 0 && suppliers[selectedIndex]) {
+                    fillForm(suppliers[selectedIndex]);
+                    setStatus("已取消編輯並還原目前供應商");
+                } else if (filteredIndexes.length > 0) {
+                    selectSupplier(filteredIndexes[0]);
+                    setStatus("已取消新增");
+                } else {
+                    clearForm();
+                    setStatus("已取消");
+                }
+            }
+
+            function applyFilter() {
+                var keyword = search.value.trim().toLowerCase();
+                filteredIndexes = suppliers
+                    .map(function (_, index) { return index; })
+                    .filter(function (index) {
+                        if (!keyword) {
+                            return true;
+                        }
+
+                        return fields.some(function (field) {
+                            return String(suppliers[index][field] || "").toLowerCase().indexOf(keyword) >= 0;
+                        });
+                    });
+
+                if (filteredIndexes.indexOf(selectedIndex) < 0) {
+                    selectedIndex = filteredIndexes.length > 0 ? filteredIndexes[0] : -1;
+                }
+                renderRows();
+            }
+
+            function moveSelection(action) {
+                if (filteredIndexes.length === 0) {
+                    selectedIndex = -1;
+                    clearForm();
+                    setStatus("沒有符合條件的供應商");
+                    return;
+                }
+
+                var position = filteredIndexes.indexOf(selectedIndex);
+                if (position < 0) {
+                    position = 0;
+                }
+
+                if (action === "first") {
+                    position = 0;
+                } else if (action === "previous") {
+                    position = Math.max(0, position - 1);
+                } else if (action === "next") {
+                    position = Math.min(filteredIndexes.length - 1, position + 1);
+                } else if (action === "last") {
+                    position = filteredIndexes.length - 1;
+                }
+
+                selectSupplier(filteredIndexes[position]);
+                setStatus((position + 1) + "/" + filteredIndexes.length);
+            }
+
+            function setStatus(message) {
+                status.textContent = message;
+            }
+
+            document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                var action = event.detail.action;
+                if (action === "create") {
+                    event.preventDefault();
+                    createSupplier();
+                } else if (action === "edit") {
+                    event.preventDefault();
+                    saveSupplier();
+                } else if (action === "copy") {
+                    event.preventDefault();
+                    copySupplier();
+                } else if (action === "cancel") {
+                    event.preventDefault();
+                    cancelEdit();
+                } else if (action === "delete") {
+                    event.preventDefault();
+                    deleteSupplier();
+                } else if (action === "find") {
+                    event.preventDefault();
+                    search.focus();
+                    search.select();
+                    applyFilter();
+                } else if (action === "print") {
+                    event.preventDefault();
+                    window.print();
+                } else if (["first", "previous", "next", "last"].indexOf(action) >= 0) {
+                    event.preventDefault();
+                    moveSelection(action);
+                }
+            });
+
+            search.addEventListener("input", applyFilter);
+
+            listView.addEventListener("click", function (event) {
+                var row = event.target.closest("tbody tr[data-supplier-index]");
+                if (row) {
+                    selectSupplier(parseInt(row.dataset.supplierIndex, 10));
+                }
+            });
+
+            renderRows();
+            selectSupplier(0);
+        })();
+    </script>
+}
