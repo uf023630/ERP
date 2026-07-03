@@ -46,6 +46,19 @@ public class HomeController : Controller
         return View();
     }
 
+    [RequirePermission("PAGE_VENDOR_LAYOUT_TEST")]
+    public async Task<IActionResult> VendorLayoutTest()
+    {
+        var model = VendorLayoutTestViewModel.Create();
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (long.TryParse(userIdValue, out var appUserId))
+        {
+            await _listViewSettingsService.ApplySettingsAsync(appUserId, model.ListView);
+        }
+
+        return View(model);
+    }
+
     [RequirePermission("PAGE_PRODUCT_LAYOUT_TEST")]
     public IActionResult ProductLayoutTest()
     {

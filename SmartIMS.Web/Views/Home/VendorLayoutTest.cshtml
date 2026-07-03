@@ -1,0 +1,368 @@
+@model SmartIMS.Web.ViewModels.VendorLayoutTestViewModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = "廠商資料管理";
+    ViewData["ToolbarPageCode"] = "PAGE_VENDOR_LAYOUT_TEST";
+    ViewData["ToolbarActions"] = "create,delete,copy,edit,cancel,find,print,first,previous,next,last";
+    var vendorsJson = JsonSerializer.Serialize(Model.Vendors);
+}
+
+<div class="page-title-row">
+    <h1>廠商資料管理</h1>
+    <span class="text-muted small">Layout 測試資料，不連接資料庫</span>
+</div>
+
+<div class="vendor-layout-test" data-vendor-layout-test>
+    <div class="win-panel mb-2">
+        <div class="section-caption">廠商明細</div>
+        <form id="vendorForm" class="compact-form vendor-detail-form">
+            <div class="row g-2">
+                <div class="col-md-2">
+                    <label class="form-label" for="vendorCode">廠商編號</label>
+                    <input id="vendorCode" name="VendorCode" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="vendorFullName">廠商全名</label>
+                    <input id="vendorFullName" name="VendorFullName" class="form-control form-control-sm" required />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="taxId">統一編號</label>
+                    <input id="taxId" name="TaxId" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="vendorShortName">廠商簡稱</label>
+                    <input id="vendorShortName" name="VendorShortName" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="category">分類</label>
+                    <input id="category" name="Category" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="phone">電話</label>
+                    <input id="phone" name="Phone" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="fax">傳真</label>
+                    <input id="fax" name="Fax" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="email">E_MAIL</label>
+                    <input id="email" name="Email" class="form-control form-control-sm" type="email" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="owner">負責人</label>
+                    <input id="owner" name="Owner" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="contact">聯絡人</label>
+                    <input id="contact" name="Contact" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="paymentMethod">付款方式</label>
+                    <input id="paymentMethod" name="PaymentMethod" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="bankName">滙款銀行</label>
+                    <input id="bankName" name="BankName" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="bankAccount">滙款帳號</label>
+                    <input id="bankAccount" name="BankAccount" class="form-control form-control-sm" />
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label" for="address">地址</label>
+                    <input id="address" name="Address" class="form-control form-control-sm" />
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="note">備註</label>
+                    <textarea id="note" name="Note" class="form-control form-control-sm" rows="3"></textarea>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div class="win-panel">
+        <div class="vendor-list-tools">
+            <input id="vendorSearch" class="form-control form-control-sm" type="search" placeholder="輸入廠商編號、全名、簡稱、統一編號、電話或聯絡人尋找" />
+            <span class="vendor-layout-status" data-vendor-status></span>
+        </div>
+        <partial name="_ListView" model="Model.ListView" />
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var root = document.querySelector("[data-vendor-layout-test]");
+            if (!root) {
+                return;
+            }
+
+            var vendors = @Html.Raw(vendorsJson);
+            var selectedIndex = 0;
+            var filteredIndexes = vendors.map(function (_, index) { return index; });
+            var listView = root.querySelector(".listview-component");
+            var table = root.querySelector(".listview-table");
+            var tableBody = table.querySelector("tbody");
+            var form = document.getElementById("vendorForm");
+            var search = document.getElementById("vendorSearch");
+            var status = root.querySelector("[data-vendor-status]");
+            var fields = [
+                "VendorCode",
+                "VendorFullName",
+                "TaxId",
+                "VendorShortName",
+                "Category",
+                "Phone",
+                "Fax",
+                "Email",
+                "Owner",
+                "Contact",
+                "PaymentMethod",
+                "BankName",
+                "BankAccount",
+                "Address",
+                "Note"
+            ];
+
+            function renderRows() {
+                tableBody.innerHTML = "";
+                filteredIndexes.forEach(function (vendorIndex) {
+                    var vendor = vendors[vendorIndex];
+                    var row = document.createElement("tr");
+                    row.dataset.vendorIndex = String(vendorIndex);
+                    row.className = vendorIndex === selectedIndex ? "is-selected" : "";
+
+                    getHeaderColumns().forEach(function (column) {
+                        var cell = document.createElement("td");
+                        cell.dataset.colKey = column.key;
+                        cell.style.width = column.width;
+                        cell.style.minWidth = column.minWidth;
+                        cell.classList.toggle("is-hidden", column.hidden);
+                        cell.textContent = vendor[column.key] || "";
+                        row.appendChild(cell);
+                    });
+
+                    row.addEventListener("click", function () {
+                        selectVendor(vendorIndex);
+                    });
+                    tableBody.appendChild(row);
+                });
+                setStatus("共 " + filteredIndexes.length + " 筆");
+            }
+
+            function getHeaderColumns() {
+                return Array.prototype.slice.call(table.querySelectorAll("thead th[data-col-key]")).map(function (header) {
+                    return {
+                        key: header.dataset.colKey,
+                        hidden: header.classList.contains("is-hidden"),
+                        width: header.style.width || header.offsetWidth + "px",
+                        minWidth: header.style.minWidth || "80px"
+                    };
+                });
+            }
+
+            function selectVendor(index) {
+                if (index < 0 || index >= vendors.length) {
+                    clearForm();
+                    return;
+                }
+                selectedIndex = index;
+                fillForm(vendors[selectedIndex]);
+                renderRows();
+            }
+
+            function fillForm(vendor) {
+                fields.forEach(function (field) {
+                    form.elements[field].value = vendor[field] || "";
+                });
+            }
+
+            function clearForm() {
+                fields.forEach(function (field) {
+                    form.elements[field].value = "";
+                });
+                form.elements.VendorCode.focus();
+            }
+
+            function collectForm() {
+                var vendor = {};
+                fields.forEach(function (field) {
+                    vendor[field] = form.elements[field].value.trim();
+                });
+                return vendor;
+            }
+
+            function createVendor() {
+                selectedIndex = -1;
+                clearForm();
+                renderRows();
+                setStatus("新增模式，輸入資料後按修改圖示加入清單");
+            }
+
+            function copyVendor() {
+                if (selectedIndex < 0 || vendors.length === 0) {
+                    setStatus("沒有可複製的廠商");
+                    return;
+                }
+
+                var source = vendors[selectedIndex];
+                fillForm(Object.assign({}, source, {
+                    VendorCode: "",
+                    VendorFullName: source.VendorFullName + " 複本",
+                    TaxId: ""
+                }));
+                selectedIndex = -1;
+                renderRows();
+                form.elements.VendorCode.focus();
+                setStatus("已複製目前廠商，按修改圖示加入清單");
+            }
+
+            function saveVendor() {
+                var vendor = collectForm();
+                if (!vendor.VendorCode || !vendor.VendorFullName) {
+                    form.elements.VendorCode.focus();
+                    setStatus("廠商編號與廠商全名不可空白");
+                    return;
+                }
+
+                if (selectedIndex >= 0) {
+                    vendors[selectedIndex] = vendor;
+                    setStatus("已修改目前廠商");
+                } else {
+                    vendors.push(vendor);
+                    selectedIndex = vendors.length - 1;
+                    setStatus("已新增廠商");
+                }
+
+                applyFilter();
+                selectVendor(selectedIndex);
+            }
+
+            function deleteVendor() {
+                if (selectedIndex < 0 || vendors.length === 0) {
+                    setStatus("沒有可刪除的廠商");
+                    return;
+                }
+
+                vendors.splice(selectedIndex, 1);
+                selectedIndex = Math.min(selectedIndex, vendors.length - 1);
+                applyFilter();
+                if (filteredIndexes.length > 0) {
+                    selectVendor(filteredIndexes[0]);
+                } else {
+                    clearForm();
+                    renderRows();
+                }
+                setStatus("已刪除廠商");
+            }
+
+            function cancelEdit() {
+                if (selectedIndex >= 0 && vendors[selectedIndex]) {
+                    fillForm(vendors[selectedIndex]);
+                    setStatus("已取消編輯並還原目前廠商");
+                } else if (filteredIndexes.length > 0) {
+                    selectVendor(filteredIndexes[0]);
+                    setStatus("已取消新增");
+                } else {
+                    clearForm();
+                    setStatus("已取消");
+                }
+            }
+
+            function applyFilter() {
+                var keyword = search.value.trim().toLowerCase();
+                filteredIndexes = vendors
+                    .map(function (_, index) { return index; })
+                    .filter(function (index) {
+                        if (!keyword) {
+                            return true;
+                        }
+
+                        return fields.some(function (field) {
+                            return String(vendors[index][field] || "").toLowerCase().indexOf(keyword) >= 0;
+                        });
+                    });
+
+                if (filteredIndexes.indexOf(selectedIndex) < 0) {
+                    selectedIndex = filteredIndexes.length > 0 ? filteredIndexes[0] : -1;
+                }
+                renderRows();
+            }
+
+            function moveSelection(action) {
+                if (filteredIndexes.length === 0) {
+                    selectedIndex = -1;
+                    clearForm();
+                    setStatus("沒有符合條件的廠商");
+                    return;
+                }
+
+                var position = filteredIndexes.indexOf(selectedIndex);
+                if (position < 0) {
+                    position = 0;
+                }
+
+                if (action === "first") {
+                    position = 0;
+                } else if (action === "previous") {
+                    position = Math.max(0, position - 1);
+                } else if (action === "next") {
+                    position = Math.min(filteredIndexes.length - 1, position + 1);
+                } else if (action === "last") {
+                    position = filteredIndexes.length - 1;
+                }
+
+                selectVendor(filteredIndexes[position]);
+                setStatus((position + 1) + "/" + filteredIndexes.length);
+            }
+
+            function setStatus(message) {
+                status.textContent = message;
+            }
+
+            document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                var action = event.detail.action;
+                if (action === "create") {
+                    event.preventDefault();
+                    createVendor();
+                } else if (action === "edit") {
+                    event.preventDefault();
+                    saveVendor();
+                } else if (action === "copy") {
+                    event.preventDefault();
+                    copyVendor();
+                } else if (action === "cancel") {
+                    event.preventDefault();
+                    cancelEdit();
+                } else if (action === "delete") {
+                    event.preventDefault();
+                    deleteVendor();
+                } else if (action === "find") {
+                    event.preventDefault();
+                    search.focus();
+                    search.select();
+                    applyFilter();
+                } else if (action === "print") {
+                    event.preventDefault();
+                    window.print();
+                } else if (["first", "previous", "next", "last"].indexOf(action) >= 0) {
+                    event.preventDefault();
+                    moveSelection(action);
+                }
+            });
+
+            search.addEventListener("input", applyFilter);
+
+            listView.addEventListener("click", function (event) {
+                var row = event.target.closest("tbody tr[data-vendor-index]");
+                if (row) {
+                    selectVendor(parseInt(row.dataset.vendorIndex, 10));
+                }
+            });
+
+            renderRows();
+            selectVendor(0);
+        })();
+    </script>
+}
