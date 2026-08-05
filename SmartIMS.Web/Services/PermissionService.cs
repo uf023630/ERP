@@ -29,6 +29,10 @@ public sealed class PermissionService
             new("客戶資料管理", "Home", "CustomerLayoutTest", "PAGE_CUSTOMER_LAYOUT_TEST"),
             new("商品資料管理", "Home", "ProductLayoutTest", "PAGE_PRODUCT_LAYOUT_TEST"),
             new("商品材質管理", "Home", "MaterialLayoutTest", "PAGE_PRODUCT_MATERIAL")
+        ]),
+        new("銷售管理",
+        [
+            new("報價單", "Quotation", "Index", "PAGE_SALES_QUOTATION")
         ])
     ];
 

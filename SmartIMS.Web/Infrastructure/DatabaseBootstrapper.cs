@@ -295,6 +295,306 @@ public sealed class DatabaseBootstrapper
         END;
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_ProductMaterial_Code' AND object_id = OBJECT_ID('dbo.ProductMaterial'))
             EXEC('CREATE UNIQUE INDEX UQ_ProductMaterial_Code ON dbo.ProductMaterial(MaterialCode) WHERE IsActive = 1;');
+
+        IF OBJECT_ID('dbo.NumberSequence', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.NumberSequence (
+                SequenceKey NVARCHAR(50) NOT NULL CONSTRAINT PK_NumberSequence_SmartIMS PRIMARY KEY,
+                Prefix NVARCHAR(20) NOT NULL,
+                CurrentValue BIGINT NOT NULL CONSTRAINT DF_NumberSequence_CurrentValue_SmartIMS DEFAULT (0),
+                PaddingLength INT NOT NULL CONSTRAINT DF_NumberSequence_PaddingLength_SmartIMS DEFAULT (6),
+                UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NumberSequence_UpdatedAt_SmartIMS DEFAULT (SYSUTCDATETIME())
+            );
+        END;
+
+        MERGE dbo.NumberSequence AS target
+        USING (
+            VALUES
+              (N'SALES_QUOTE', N'QT', CAST(0 AS BIGINT), 6),
+              (N'SALES_ORDER', N'SO', CAST(0 AS BIGINT), 6)
+        ) AS source (SequenceKey, Prefix, CurrentValue, PaddingLength)
+        ON target.SequenceKey = source.SequenceKey
+        WHEN NOT MATCHED THEN
+          INSERT (SequenceKey, Prefix, CurrentValue, PaddingLength)
+          VALUES (source.SequenceKey, source.Prefix, source.CurrentValue, source.PaddingLength);
+
+        IF OBJECT_ID('dbo.Customer', 'U') IS NOT NULL AND OBJECT_ID('dbo.SalesQuote', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.SalesQuote (
+                SalesQuoteID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_SalesQuote_SmartIMS PRIMARY KEY,
+                QuoteNo NVARCHAR(30) NOT NULL,
+                CustomerID BIGINT NOT NULL,
+                QuoteDate DATE NOT NULL,
+                ExpireDate DATE NOT NULL,
+                Status VARCHAR(20) NOT NULL CONSTRAINT DF_SalesQuote_Status_SmartIMS DEFAULT ('Quoting'),
+                SubTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesQuote_SubTotal_SmartIMS DEFAULT (0),
+                TaxAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesQuote_TaxAmount_SmartIMS DEFAULT (0),
+                TotalAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesQuote_TotalAmount_SmartIMS DEFAULT (0),
+                IsCustomerSuppliedMaterial BIT NOT NULL CONSTRAINT DF_SalesQuote_CustomerSuppliedMaterial_SmartIMS DEFAULT (0),
+                Remark NVARCHAR(500) NULL,
+                CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_SalesQuote_CreatedAt_SmartIMS DEFAULT (SYSUTCDATETIME()),
+                IsLocked BIT NOT NULL CONSTRAINT DF_SalesQuote_IsLocked_SmartIMS DEFAULT (0)
+            );
+        END;
+
+        IF OBJECT_ID('dbo.SalesQuote', 'U') IS NOT NULL
+        BEGIN
+            IF COL_LENGTH('dbo.SalesQuote', 'CustomerCode') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD CustomerCode NVARCHAR(50) NOT NULL CONSTRAINT DF_SalesQuote_CustomerCode DEFAULT (N'');
+            IF COL_LENGTH('dbo.SalesQuote', 'CustomerName') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD CustomerName NVARCHAR(200) NOT NULL CONSTRAINT DF_SalesQuote_CustomerName DEFAULT (N'');
+            IF COL_LENGTH('dbo.SalesQuote', 'CustomerTaxId') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD CustomerTaxId NVARCHAR(20) NULL;
+            IF COL_LENGTH('dbo.SalesQuote', 'CustomerContactName') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD CustomerContactName NVARCHAR(100) NULL;
+            IF COL_LENGTH('dbo.SalesQuote', 'CustomerPhone') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD CustomerPhone NVARCHAR(50) NULL;
+            IF COL_LENGTH('dbo.SalesQuote', 'CustomerAddress') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD CustomerAddress NVARCHAR(500) NULL;
+            IF COL_LENGTH('dbo.SalesQuote', 'TaxType') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD TaxType VARCHAR(20) NOT NULL CONSTRAINT DF_SalesQuote_TaxType DEFAULT ('Exclusive');
+            IF COL_LENGTH('dbo.SalesQuote', 'TaxRate') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD TaxRate DECIMAL(5,2) NOT NULL CONSTRAINT DF_SalesQuote_TaxRate DEFAULT (5);
+            IF COL_LENGTH('dbo.SalesQuote', 'IsCustomerSuppliedMaterial') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD IsCustomerSuppliedMaterial BIT NOT NULL CONSTRAINT DF_SalesQuote_CustomerSuppliedMaterial DEFAULT (0);
+            IF COL_LENGTH('dbo.SalesQuote', 'UpdatedAt') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_SalesQuote_UpdatedAt DEFAULT (SYSUTCDATETIME());
+            IF COL_LENGTH('dbo.SalesQuote', 'VoidReason') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD VoidReason NVARCHAR(500) NULL;
+            IF COL_LENGTH('dbo.SalesQuote', 'VoidedAt') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD VoidedAt DATETIME2(0) NULL;
+
+            IF OBJECT_ID('dbo.Customer', 'U') IS NOT NULL
+            BEGIN
+                EXEC(N'
+                    UPDATE q
+                    SET CustomerCode = c.CustomerCode,
+                        CustomerName = c.CustomerName,
+                        CustomerTaxId = c.TaxId,
+                        CustomerContactName = c.ContactName,
+                        CustomerPhone = c.Phone,
+                        CustomerAddress = c.Address
+                    FROM dbo.SalesQuote q
+                    INNER JOIN dbo.Customer c ON c.CustomerID = q.CustomerID
+                    WHERE q.CustomerCode = N'''' OR q.CustomerName = N'''';
+                ');
+
+                IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_SalesQuote_Customer_Runtime')
+                    ALTER TABLE dbo.SalesQuote ADD CONSTRAINT FK_SalesQuote_Customer_Runtime FOREIGN KEY (CustomerID) REFERENCES dbo.Customer(CustomerID);
+            END;
+
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_SalesQuote_QuoteNo' AND object_id = OBJECT_ID('dbo.SalesQuote'))
+                CREATE UNIQUE INDEX UQ_SalesQuote_QuoteNo ON dbo.SalesQuote(QuoteNo);
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_SalesQuote_Date_Status' AND object_id = OBJECT_ID('dbo.SalesQuote'))
+                CREATE INDEX IX_SalesQuote_Date_Status ON dbo.SalesQuote(QuoteDate DESC, Status);
+        END;
+
+        IF OBJECT_ID('dbo.SalesQuote', 'U') IS NOT NULL AND OBJECT_ID('dbo.SalesQuoteItem', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.SalesQuoteItem (
+                SalesQuoteItemID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_SalesQuoteItem_SmartIMS PRIMARY KEY,
+                SalesQuoteID BIGINT NOT NULL,
+                LineNumber INT NOT NULL,
+                ProductID BIGINT NULL,
+                Qty DECIMAL(18,4) NOT NULL,
+                UnitPrice DECIMAL(18,4) NOT NULL,
+                TaxRate DECIMAL(5,2) NOT NULL CONSTRAINT DF_SalesQuoteItem_TaxRate_SmartIMS DEFAULT (0),
+                LineAmount AS (Qty * UnitPrice)
+            );
+        END;
+
+        IF OBJECT_ID('dbo.SalesQuoteItem', 'U') IS NOT NULL
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM sys.columns
+                WHERE object_id = OBJECT_ID('dbo.SalesQuoteItem')
+                  AND name = 'ProductID'
+                  AND is_nullable = 0
+            )
+                ALTER TABLE dbo.SalesQuoteItem ALTER COLUMN ProductID BIGINT NULL;
+            IF COL_LENGTH('dbo.SalesQuoteItem', 'ItemSource') IS NULL
+                ALTER TABLE dbo.SalesQuoteItem ADD ItemSource VARCHAR(20) NOT NULL CONSTRAINT DF_SalesQuoteItem_ItemSource DEFAULT ('Product');
+            IF COL_LENGTH('dbo.SalesQuoteItem', 'ProductCode') IS NULL
+                ALTER TABLE dbo.SalesQuoteItem ADD ProductCode NVARCHAR(50) NULL;
+            IF COL_LENGTH('dbo.SalesQuoteItem', 'ProductName') IS NULL
+                ALTER TABLE dbo.SalesQuoteItem ADD ProductName NVARCHAR(200) NOT NULL CONSTRAINT DF_SalesQuoteItem_ProductName DEFAULT (N'');
+            IF COL_LENGTH('dbo.SalesQuoteItem', 'Specification') IS NULL
+                ALTER TABLE dbo.SalesQuoteItem ADD Specification NVARCHAR(500) NULL;
+            IF COL_LENGTH('dbo.SalesQuoteItem', 'Unit') IS NULL
+                ALTER TABLE dbo.SalesQuoteItem ADD Unit NVARCHAR(20) NULL;
+            IF COL_LENGTH('dbo.SalesQuoteItem', 'Remark') IS NULL
+                ALTER TABLE dbo.SalesQuoteItem ADD Remark NVARCHAR(500) NULL;
+
+            IF OBJECT_ID('dbo.Product', 'U') IS NOT NULL
+            BEGIN
+                EXEC(N'
+                    UPDATE qi
+                    SET ProductCode = p.ProductCode,
+                        ProductName = p.ProductName,
+                        Specification = p.Specification,
+                        Unit = p.Unit,
+                        ItemSource = ''Product''
+                    FROM dbo.SalesQuoteItem qi
+                    INNER JOIN dbo.Product p ON p.ProductID = qi.ProductID
+                    WHERE qi.ProductName = N'''';
+                ');
+
+                IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_SalesQuoteItem_Product_Runtime')
+                    ALTER TABLE dbo.SalesQuoteItem ADD CONSTRAINT FK_SalesQuoteItem_Product_Runtime FOREIGN KEY (ProductID) REFERENCES dbo.Product(ProductID);
+            END;
+
+            IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_SalesQuoteItem_Head_Runtime')
+                ALTER TABLE dbo.SalesQuoteItem ADD CONSTRAINT FK_SalesQuoteItem_Head_Runtime FOREIGN KEY (SalesQuoteID) REFERENCES dbo.SalesQuote(SalesQuoteID) ON DELETE CASCADE;
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_SalesQuoteItem_Line' AND object_id = OBJECT_ID('dbo.SalesQuoteItem'))
+                CREATE UNIQUE INDEX UQ_SalesQuoteItem_Line ON dbo.SalesQuoteItem(SalesQuoteID, LineNumber);
+        END;
+
+        IF OBJECT_ID('dbo.Customer', 'U') IS NOT NULL AND OBJECT_ID('dbo.SalesOrder', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.SalesOrder (
+                SalesOrderID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_SalesOrder_SmartIMS PRIMARY KEY,
+                SONo NVARCHAR(30) NOT NULL,
+                CustomerID BIGINT NOT NULL,
+                SourceQuoteID BIGINT NULL,
+                OrderDate DATE NOT NULL,
+                RequiredDate DATE NULL,
+                PaymentTermDays INT NOT NULL CONSTRAINT DF_SalesOrder_PaymentTermDays_SmartIMS DEFAULT (30),
+                Status VARCHAR(20) NOT NULL CONSTRAINT DF_SalesOrder_Status_SmartIMS DEFAULT ('Confirmed'),
+                SubTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesOrder_SubTotal_SmartIMS DEFAULT (0),
+                TaxAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesOrder_TaxAmount_SmartIMS DEFAULT (0),
+                TotalAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesOrder_TotalAmount_SmartIMS DEFAULT (0),
+                IsCustomerSuppliedMaterial BIT NOT NULL CONSTRAINT DF_SalesOrder_CustomerSuppliedMaterial_SmartIMS DEFAULT (0),
+                Remark NVARCHAR(500) NULL,
+                CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_SalesOrder_CreatedAt_SmartIMS DEFAULT (SYSUTCDATETIME())
+            );
+        END;
+
+        IF OBJECT_ID('dbo.SalesOrder', 'U') IS NOT NULL
+        BEGIN
+            IF COL_LENGTH('dbo.SalesOrder', 'TaxType') IS NULL
+                ALTER TABLE dbo.SalesOrder ADD TaxType VARCHAR(20) NOT NULL CONSTRAINT DF_SalesOrder_TaxType DEFAULT ('Exclusive');
+            IF COL_LENGTH('dbo.SalesOrder', 'TaxRate') IS NULL
+                ALTER TABLE dbo.SalesOrder ADD TaxRate DECIMAL(5,2) NOT NULL CONSTRAINT DF_SalesOrder_TaxRate DEFAULT (5);
+            IF COL_LENGTH('dbo.SalesOrder', 'IsCustomerSuppliedMaterial') IS NULL
+                ALTER TABLE dbo.SalesOrder ADD IsCustomerSuppliedMaterial BIT NOT NULL CONSTRAINT DF_SalesOrder_CustomerSuppliedMaterial DEFAULT (0);
+            IF COL_LENGTH('dbo.SalesOrder', 'CustomerCode') IS NULL
+                ALTER TABLE dbo.SalesOrder ADD CustomerCode NVARCHAR(50) NOT NULL CONSTRAINT DF_SalesOrder_CustomerCode DEFAULT (N'');
+            IF COL_LENGTH('dbo.SalesOrder', 'CustomerName') IS NULL
+                ALTER TABLE dbo.SalesOrder ADD CustomerName NVARCHAR(200) NOT NULL CONSTRAINT DF_SalesOrder_CustomerName DEFAULT (N'');
+            IF COL_LENGTH('dbo.SalesOrder', 'CustomerTaxId') IS NULL
+                ALTER TABLE dbo.SalesOrder ADD CustomerTaxId NVARCHAR(20) NULL;
+            IF COL_LENGTH('dbo.SalesOrder', 'CustomerContactName') IS NULL
+                ALTER TABLE dbo.SalesOrder ADD CustomerContactName NVARCHAR(100) NULL;
+            IF COL_LENGTH('dbo.SalesOrder', 'CustomerPhone') IS NULL
+                ALTER TABLE dbo.SalesOrder ADD CustomerPhone NVARCHAR(50) NULL;
+            IF COL_LENGTH('dbo.SalesOrder', 'CustomerAddress') IS NULL
+                ALTER TABLE dbo.SalesOrder ADD CustomerAddress NVARCHAR(500) NULL;
+
+            IF OBJECT_ID('dbo.Customer', 'U') IS NOT NULL
+            BEGIN
+                EXEC(N'
+                    UPDATE so
+                    SET CustomerCode = c.CustomerCode,
+                        CustomerName = c.CustomerName,
+                        CustomerTaxId = c.TaxId,
+                        CustomerContactName = c.ContactName,
+                        CustomerPhone = c.Phone,
+                        CustomerAddress = c.Address
+                    FROM dbo.SalesOrder so
+                    INNER JOIN dbo.Customer c ON c.CustomerID = so.CustomerID
+                    WHERE so.CustomerCode = N'''' OR so.CustomerName = N'''';
+                ');
+            END;
+        END;
+
+        IF OBJECT_ID('dbo.SalesOrder', 'U') IS NOT NULL AND OBJECT_ID('dbo.SalesOrderItem', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.SalesOrderItem (
+                SalesOrderItemID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_SalesOrderItem_SmartIMS PRIMARY KEY,
+                SalesOrderID BIGINT NOT NULL,
+                LineNumber INT NOT NULL,
+                ProductID BIGINT NULL,
+                OrderedQty DECIMAL(18,4) NOT NULL,
+                ShippedQty DECIMAL(18,4) NOT NULL CONSTRAINT DF_SalesOrderItem_ShippedQty_SmartIMS DEFAULT (0),
+                UnitPrice DECIMAL(18,4) NOT NULL,
+                TaxRate DECIMAL(5,2) NOT NULL CONSTRAINT DF_SalesOrderItem_TaxRate_SmartIMS DEFAULT (0),
+                LineAmount AS (OrderedQty * UnitPrice)
+            );
+        END;
+
+        IF OBJECT_ID('dbo.SalesOrderItem', 'U') IS NOT NULL
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM sys.columns
+                WHERE object_id = OBJECT_ID('dbo.SalesOrderItem')
+                  AND name = 'ProductID'
+                  AND is_nullable = 0
+            )
+                ALTER TABLE dbo.SalesOrderItem ALTER COLUMN ProductID BIGINT NULL;
+            IF COL_LENGTH('dbo.SalesOrderItem', 'ItemSource') IS NULL
+                ALTER TABLE dbo.SalesOrderItem ADD ItemSource VARCHAR(20) NOT NULL CONSTRAINT DF_SalesOrderItem_ItemSource DEFAULT ('Product');
+            IF COL_LENGTH('dbo.SalesOrderItem', 'ProductCode') IS NULL
+                ALTER TABLE dbo.SalesOrderItem ADD ProductCode NVARCHAR(50) NULL;
+            IF COL_LENGTH('dbo.SalesOrderItem', 'ProductName') IS NULL
+                ALTER TABLE dbo.SalesOrderItem ADD ProductName NVARCHAR(200) NOT NULL CONSTRAINT DF_SalesOrderItem_ProductName DEFAULT (N'');
+            IF COL_LENGTH('dbo.SalesOrderItem', 'Specification') IS NULL
+                ALTER TABLE dbo.SalesOrderItem ADD Specification NVARCHAR(500) NULL;
+            IF COL_LENGTH('dbo.SalesOrderItem', 'Unit') IS NULL
+                ALTER TABLE dbo.SalesOrderItem ADD Unit NVARCHAR(20) NULL;
+            IF COL_LENGTH('dbo.SalesOrderItem', 'Remark') IS NULL
+                ALTER TABLE dbo.SalesOrderItem ADD Remark NVARCHAR(500) NULL;
+
+            IF OBJECT_ID('dbo.Product', 'U') IS NOT NULL
+            BEGIN
+                EXEC(N'
+                    UPDATE oi
+                    SET ProductCode = p.ProductCode,
+                        ProductName = p.ProductName,
+                        Specification = p.Specification,
+                        Unit = p.Unit,
+                        ItemSource = ''Product''
+                    FROM dbo.SalesOrderItem oi
+                    INNER JOIN dbo.Product p ON p.ProductID = oi.ProductID
+                    WHERE oi.ProductName = N'''';
+                ');
+            END;
+        END;
+
+        IF OBJECT_ID('dbo.SalesOrder', 'U') IS NOT NULL
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM sys.check_constraints
+                WHERE parent_object_id = OBJECT_ID('dbo.SalesQuote')
+                  AND name = 'CK_SalesQuote_Status_Runtime'
+            )
+                ALTER TABLE dbo.SalesQuote DROP CONSTRAINT CK_SalesQuote_Status_Runtime;
+            IF NOT EXISTS (
+                SELECT 1 FROM sys.check_constraints
+                WHERE parent_object_id = OBJECT_ID('dbo.SalesQuote')
+                  AND name = 'CK_SalesQuote_Status_SmartIMS'
+            )
+                ALTER TABLE dbo.SalesQuote WITH NOCHECK
+                ADD CONSTRAINT CK_SalesQuote_Status_SmartIMS
+                CHECK (Status IN ('Quoting', 'Converted', 'Voided'));
+
+            UPDATE q
+            SET Status = 'Converted',
+                IsLocked = 1
+            FROM dbo.SalesQuote q
+            WHERE EXISTS (
+                SELECT 1 FROM dbo.SalesOrder so
+                WHERE so.SourceQuoteID = q.SalesQuoteID
+            );
+        END;
+
+        IF OBJECT_ID('dbo.SalesQuote', 'U') IS NOT NULL
+        BEGIN
+            UPDATE dbo.SalesQuote
+            SET Status = 'Quoting'
+            WHERE Status NOT IN ('Quoting', 'Converted', 'Voided');
+
+            ALTER TABLE dbo.SalesQuote WITH CHECK CHECK CONSTRAINT CK_SalesQuote_Status_SmartIMS;
+        END;
         """;
 
     private const string SeedSql = """
@@ -304,6 +604,7 @@ public sealed class DatabaseBootstrapper
               (N'PAGE_DASHBOARD', N'儀表板', N'PAGE', N'NAVIGATE', N'可進入系統首頁與基礎資料預留頁'),
               (N'PAGE_COMPONENT_TEST', N'元件測試頁面', N'PAGE', N'NAVIGATE', N'可進入元件測試頁面'),
               (N'PAGE_CUSTOMER_LAYOUT_TEST', N'客戶資料管理測試', N'PAGE', N'NAVIGATE', N'可進入客戶資料管理 Layout 測試頁'),
+              (N'PAGE_SALES_QUOTATION', N'報價單', N'PAGE', N'NAVIGATE', N'可進入報價單管理'),
               (N'PAGE_ADMIN_USERS', N'使用者管理', N'PAGE', N'NAVIGATE', N'可進入使用者管理'),
               (N'PAGE_ADMIN_PERMISSIONS', N'權限設定', N'PAGE', N'NAVIGATE', N'可進入使用者權限設定'),
               (N'PAGE_ADMIN_BRANDING', N'公司形象', N'PAGE', N'NAVIGATE', N'可進入公司 Logo 與登入圖設定'),
@@ -396,7 +697,8 @@ public sealed class DatabaseBootstrapper
               (N'PAGE_COMPONENT_TEST', N'元件測試頁面', N'基礎資料', N'Home', N'ComponentTest', 20, 20),
               (N'PAGE_CUSTOMER_LAYOUT_TEST', N'客戶資料管理', N'基礎資料', N'Home', N'CustomerLayoutTest', 20, 30),
               (N'PAGE_PRODUCT_LAYOUT_TEST', N'商品資料管理', N'基礎資料', N'Home', N'ProductLayoutTest', 20, 40),
-              (N'PAGE_PRODUCT_MATERIAL', N'商品材質管理', N'基礎資料', N'Home', N'MaterialLayoutTest', 20, 50)
+              (N'PAGE_PRODUCT_MATERIAL', N'商品材質管理', N'基礎資料', N'Home', N'MaterialLayoutTest', 20, 50),
+              (N'PAGE_SALES_QUOTATION', N'報價單', N'銷售管理', N'Quotation', N'Index', 30, 10)
         ) AS source (PageCode, PageName, MenuGroup, ControllerName, ActionName, MenuSortOrder, SortOrder)
         ON target.PageCode = source.PageCode
         WHEN MATCHED THEN
@@ -420,7 +722,8 @@ public sealed class DatabaseBootstrapper
                   (N'PAGE_COMPONENT_TEST', N'NAVIGATE'), (N'PAGE_COMPONENT_TEST', N'FIND'), (N'PAGE_COMPONENT_TEST', N'PRINT'), (N'PAGE_COMPONENT_TEST', N'FIRST'), (N'PAGE_COMPONENT_TEST', N'PREVIOUS'), (N'PAGE_COMPONENT_TEST', N'NEXT'), (N'PAGE_COMPONENT_TEST', N'LAST'),
                   (N'PAGE_CUSTOMER_LAYOUT_TEST', N'NAVIGATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'CREATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'DELETE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'COPY'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'EDIT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'CANCEL'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIND'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'PRINT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIRST'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'PREVIOUS'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'NEXT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'LAST'),
                   (N'PAGE_PRODUCT_LAYOUT_TEST', N'NAVIGATE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'CREATE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'DELETE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'COPY'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'EDIT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'CANCEL'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'FIND'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'PRINT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'FIRST'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'PREVIOUS'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'NEXT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'LAST'),
-                  (N'PAGE_PRODUCT_MATERIAL', N'NAVIGATE'), (N'PAGE_PRODUCT_MATERIAL', N'CREATE'), (N'PAGE_PRODUCT_MATERIAL', N'DELETE'), (N'PAGE_PRODUCT_MATERIAL', N'COPY'), (N'PAGE_PRODUCT_MATERIAL', N'EDIT'), (N'PAGE_PRODUCT_MATERIAL', N'CANCEL'), (N'PAGE_PRODUCT_MATERIAL', N'FIND'), (N'PAGE_PRODUCT_MATERIAL', N'PRINT'), (N'PAGE_PRODUCT_MATERIAL', N'FIRST'), (N'PAGE_PRODUCT_MATERIAL', N'PREVIOUS'), (N'PAGE_PRODUCT_MATERIAL', N'NEXT'), (N'PAGE_PRODUCT_MATERIAL', N'LAST')
+                  (N'PAGE_PRODUCT_MATERIAL', N'NAVIGATE'), (N'PAGE_PRODUCT_MATERIAL', N'CREATE'), (N'PAGE_PRODUCT_MATERIAL', N'DELETE'), (N'PAGE_PRODUCT_MATERIAL', N'COPY'), (N'PAGE_PRODUCT_MATERIAL', N'EDIT'), (N'PAGE_PRODUCT_MATERIAL', N'CANCEL'), (N'PAGE_PRODUCT_MATERIAL', N'FIND'), (N'PAGE_PRODUCT_MATERIAL', N'PRINT'), (N'PAGE_PRODUCT_MATERIAL', N'FIRST'), (N'PAGE_PRODUCT_MATERIAL', N'PREVIOUS'), (N'PAGE_PRODUCT_MATERIAL', N'NEXT'), (N'PAGE_PRODUCT_MATERIAL', N'LAST'),
+                  (N'PAGE_SALES_QUOTATION', N'NAVIGATE'), (N'PAGE_SALES_QUOTATION', N'CREATE'), (N'PAGE_SALES_QUOTATION', N'DELETE'), (N'PAGE_SALES_QUOTATION', N'COPY'), (N'PAGE_SALES_QUOTATION', N'EDIT'), (N'PAGE_SALES_QUOTATION', N'CANCEL'), (N'PAGE_SALES_QUOTATION', N'FIND'), (N'PAGE_SALES_QUOTATION', N'PRINT'), (N'PAGE_SALES_QUOTATION', N'FIRST'), (N'PAGE_SALES_QUOTATION', N'PREVIOUS'), (N'PAGE_SALES_QUOTATION', N'NEXT'), (N'PAGE_SALES_QUOTATION', N'LAST')
             ) AS supported(PageCode, ActionCode)
             INNER JOIN dbo.AppPage pg ON pg.PageCode = supported.PageCode
             INNER JOIN dbo.AppAction a ON a.ActionCode = supported.ActionCode
@@ -482,7 +785,8 @@ public sealed class DatabaseBootstrapper
             VALUES
               (N'PAGE_CUSTOMER_LAYOUT_TEST'), (N'PAGE_CUSTOMER_LAYOUT_TEST_CREATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST_EDIT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_FIND'), (N'PAGE_CUSTOMER_LAYOUT_TEST_PRINT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_FIRST'), (N'PAGE_CUSTOMER_LAYOUT_TEST_PREVIOUS'), (N'PAGE_CUSTOMER_LAYOUT_TEST_NEXT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_LAST'),
               (N'PAGE_PRODUCT_LAYOUT_TEST'), (N'PAGE_PRODUCT_LAYOUT_TEST_FIND'), (N'PAGE_PRODUCT_LAYOUT_TEST_PRINT'), (N'PAGE_PRODUCT_LAYOUT_TEST_FIRST'), (N'PAGE_PRODUCT_LAYOUT_TEST_PREVIOUS'), (N'PAGE_PRODUCT_LAYOUT_TEST_NEXT'), (N'PAGE_PRODUCT_LAYOUT_TEST_LAST'),
-              (N'PAGE_PRODUCT_MATERIAL'), (N'PAGE_PRODUCT_MATERIAL_FIND'), (N'PAGE_PRODUCT_MATERIAL_PRINT'), (N'PAGE_PRODUCT_MATERIAL_FIRST'), (N'PAGE_PRODUCT_MATERIAL_PREVIOUS'), (N'PAGE_PRODUCT_MATERIAL_NEXT'), (N'PAGE_PRODUCT_MATERIAL_LAST')
+              (N'PAGE_PRODUCT_MATERIAL'), (N'PAGE_PRODUCT_MATERIAL_FIND'), (N'PAGE_PRODUCT_MATERIAL_PRINT'), (N'PAGE_PRODUCT_MATERIAL_FIRST'), (N'PAGE_PRODUCT_MATERIAL_PREVIOUS'), (N'PAGE_PRODUCT_MATERIAL_NEXT'), (N'PAGE_PRODUCT_MATERIAL_LAST'),
+              (N'PAGE_SALES_QUOTATION'), (N'PAGE_SALES_QUOTATION_CREATE'), (N'PAGE_SALES_QUOTATION_DELETE'), (N'PAGE_SALES_QUOTATION_COPY'), (N'PAGE_SALES_QUOTATION_EDIT'), (N'PAGE_SALES_QUOTATION_CANCEL'), (N'PAGE_SALES_QUOTATION_FIND'), (N'PAGE_SALES_QUOTATION_PRINT'), (N'PAGE_SALES_QUOTATION_FIRST'), (N'PAGE_SALES_QUOTATION_PREVIOUS'), (N'PAGE_SALES_QUOTATION_NEXT'), (N'PAGE_SALES_QUOTATION_LAST')
         ) AS allowed(PermissionCode) ON r.RoleCode = N'SALES'
         INNER JOIN dbo.PageAction pa ON pa.PermissionCode = allowed.PermissionCode
         WHERE NOT EXISTS (

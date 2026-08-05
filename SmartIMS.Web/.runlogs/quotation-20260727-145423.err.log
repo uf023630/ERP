@@ -1,0 +1,22 @@
+Unhandled exception. Microsoft.Data.SqlClient.SqlException (0x80131904): UPDATE 陳述式與 CHECK 條件約束 "CK_SalesQuote_Status_Runtime" 衝突。衝突發生在資料庫 "SmartIMS_NewVersion"，資料表 "dbo.SalesQuote", column 'Status'。
+UPDATE 陳述式與 CHECK 條件約束 "CK_SalesQuote_Status_Runtime" 衝突。衝突發生在資料庫 "SmartIMS_NewVersion"，資料表 "dbo.SalesQuote", column 'Status'。
+陳述式已經結束。
+陳述式已經結束。
+   at Microsoft.Data.SqlClient.SqlConnection.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.Connection.SqlConnectionInternal.OnError(SqlException exception, Boolean breakConnection, Action`1 wrapCloseInAction)
+   at Microsoft.Data.SqlClient.TdsParser.ThrowExceptionAndWarning(TdsParserStateObject stateObj, SqlCommand command, Boolean callerHasConnectionLock, Boolean asyncClose)
+   at Microsoft.Data.SqlClient.TdsParser.TryRun(RunBehavior runBehavior, SqlCommand cmdHandler, SqlDataReader dataStream, BulkCopySimpleResultSet bulkCopyHandler, TdsParserStateObject stateObj, Boolean& dataReady)
+   at Microsoft.Data.SqlClient.SqlCommand.InternalEndExecuteNonQuery(IAsyncResult asyncResult, Boolean isInternal, String endMethod)
+   at Microsoft.Data.SqlClient.SqlCommand.EndExecuteNonQueryInternal(IAsyncResult asyncResult)
+   at Microsoft.Data.SqlClient.SqlCommand.EndExecuteNonQueryAsync(IAsyncResult asyncResult)
+   at Microsoft.Data.SqlClient.SqlCommand.<>c.<InternalExecuteNonQueryAsync>b__251_1(IAsyncResult asyncResult)
+   at System.Threading.Tasks.TaskFactory`1.FromAsyncCoreLogic(IAsyncResult iar, Func`2 endFunction, Action`1 endAction, Task`1 promise, Boolean requiresSynchronization)
+--- End of stack trace from previous location ---
+   at SmartIMS.Web.Infrastructure.DatabaseBootstrapper.ExecuteAsync(SqlConnection connection, String commandText) in D:\進銷存系統_V2\SmartIMS.Web\Infrastructure\DatabaseBootstrapper.cs:line 78
+   at SmartIMS.Web.Infrastructure.DatabaseBootstrapper.ExecuteAsync(SqlConnection connection, String commandText) in D:\進銷存系統_V2\SmartIMS.Web\Infrastructure\DatabaseBootstrapper.cs:line 78
+   at SmartIMS.Web.Infrastructure.DatabaseBootstrapper.EnsureAsync() in D:\進銷存系統_V2\SmartIMS.Web\Infrastructure\DatabaseBootstrapper.cs:line 22
+   at SmartIMS.Web.Infrastructure.DatabaseBootstrapper.EnsureAsync() in D:\進銷存系統_V2\SmartIMS.Web\Infrastructure\DatabaseBootstrapper.cs:line 24
+   at Program.<Main>$(String[] args) in D:\進銷存系統_V2\SmartIMS.Web\Program.cs:line 45
+   at Program.<Main>(String[] args)
+ClientConnectionId:9036fa0d-bee1-442b-aab8-05637dba1fd4
+Error Number:547,State:0,Class:16

@@ -1,0 +1,323 @@
+@using SmartIMS.Web.Services
+@using SmartIMS.Web.ViewModels
+@model QuotationListViewModel
+@{
+    ViewData["Title"] = "報價單";
+    ViewData["ToolbarPageCode"] = "PAGE_SALES_QUOTATION";
+    ViewData["ToolbarActions"] = "create,delete,copy,edit,cancel,find,print,first,previous,next,last";
+    var canCreate = User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_QUOTATION_CREATE");
+    var createUrl = Url.Action("Create", "Quotation") ?? "";
+    var copyUrlTemplate = Url.Action("Copy", "Quotation", new { id = "__id__" }) ?? "";
+    var editUrlTemplate = Url.Action("Edit", "Quotation", new { id = "__id__" }) ?? "";
+    var detailUrl = Url.Action("Detail", "Quotation") ?? "";
+}
+
+<div class="page-title-row">
+    <h1>報價單</h1>
+    <span class="text-muted small">點選上方報價單，下方會顯示完整內容。</span>
+</div>
+
+<div class="quotation-master-detail" data-quotation-list>
+    <section class="win-panel quotation-master-panel" aria-labelledby="quotation-list-heading">
+        <div class="section-caption" id="quotation-list-heading">報價單清單</div>
+        <div class="row g-2 align-items-center mb-2">
+            <div class="col-md-5">
+                <input id="quotationSearch"
+                       class="form-control form-control-sm"
+                       type="search"
+                       placeholder="搜尋報價單號、客戶或銷售單號" />
+            </div>
+            <div class="col-md-7 text-md-end">
+                @if (canCreate)
+                {
+                    <a class="btn btn-sm btn-primary" asp-action="Create">新增報價單</a>
+                }
+                <span class="quotation-list-status text-muted small ms-2" data-list-status></span>
+            </div>
+        </div>
+
+        <div class="listview-frame quotation-master-list-frame">
+            <table class="table table-sm table-bordered win-table align-middle mb-0" data-quotation-table>
+                <thead>
+                    <tr>
+                        <th>報價單號</th>
+                        <th>報價日期</th>
+                        <th>有效日期</th>
+                        <th>客戶</th>
+                        <th>計稅方式</th>
+                        <th class="text-end">小計</th>
+                        <th class="text-end">稅額</th>
+                        <th class="text-end">總計</th>
+                        <th>狀態</th>
+                        <th>銷售單號</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var quotation in Model.Quotations)
+                    {
+                        var searchText = $"{quotation.QuoteNo} {quotation.CustomerCode} {quotation.CustomerName} {quotation.SalesOrderNo}";
+                        var selected = quotation.SalesQuoteId == Model.SelectedQuotationId;
+                        <tr class="@(selected ? "is-selected" : "")"
+                            tabindex="0"
+                            aria-selected="@selected.ToString().ToLowerInvariant()"
+                            data-quotation-id="@quotation.SalesQuoteId"
+                            data-search-text="@searchText"
+                            data-status="@quotation.Status">
+                            <td class="fw-semibold">@quotation.QuoteNo</td>
+                            <td>@quotation.QuoteDate.ToString("yyyy/MM/dd")</td>
+                            <td>@quotation.ExpireDate.ToString("yyyy/MM/dd")</td>
+                            <td>@quotation.CustomerCode - @quotation.CustomerName</td>
+                            <td>@QuotationTaxTypes.GetLabel(quotation.TaxType)</td>
+                            <td class="text-end">@quotation.Subtotal.ToString("N2")</td>
+                            <td class="text-end">@quotation.TaxAmount.ToString("N2")</td>
+                            <td class="text-end fw-semibold">@quotation.TotalAmount.ToString("N2")</td>
+                            <td>
+                                <span class="quotation-status quotation-status-@quotation.Status.ToLowerInvariant()">
+                                    @QuotationStatuses.GetLabel(quotation.Status)
+                                </span>
+                            </td>
+                            <td>@quotation.SalesOrderNo</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="win-panel quotation-detail-panel"
+             aria-labelledby="quotation-detail-heading"
+             aria-live="polite">
+        <div class="section-caption" id="quotation-detail-heading">報價單內容</div>
+        <div class="quotation-detail-content" data-detail-content>
+            @if (Model.SelectedQuotation is not null)
+            {
+                <partial name="_Detail" model="Model.SelectedQuotation" />
+            }
+            else
+            {
+                <div class="quotation-detail-empty">
+                    <span>目前沒有報價單資料</span>
+                </div>
+            }
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var root = document.querySelector("[data-quotation-list]");
+            if (!root) {
+                return;
+            }
+
+            var table = root.querySelector("[data-quotation-table]");
+            var search = document.getElementById("quotationSearch");
+            var status = root.querySelector("[data-list-status]");
+            var detailContent = root.querySelector("[data-detail-content]");
+            var toolbarTarget = document.querySelector(".content-frame");
+            var createUrl = "@createUrl";
+            var copyUrlTemplate = "@copyUrlTemplate";
+            var editUrlTemplate = "@editUrlTemplate";
+            var detailUrl = "@detailUrl";
+            var detailRequestVersion = 0;
+
+            function rows() {
+                return Array.prototype.slice.call(table.querySelectorAll("tbody tr[data-quotation-id]"));
+            }
+
+            function visibleRows() {
+                return rows().filter(function (row) { return !row.hidden; });
+            }
+
+            function selectedRow() {
+                return rows().find(function (row) { return row.classList.contains("is-selected"); }) || null;
+            }
+
+            function setSelectedRow(row) {
+                rows().forEach(function (item) {
+                    var isSelected = item === row;
+                    item.classList.toggle("is-selected", isSelected);
+                    item.setAttribute("aria-selected", isSelected ? "true" : "false");
+                });
+
+                if (row) {
+                    row.scrollIntoView({ block: "nearest" });
+                }
+                updateStatus();
+                syncToolbarState();
+            }
+
+            function selectRow(row, loadDetail) {
+                setSelectedRow(row);
+                if (row && loadDetail) {
+                    loadQuotationDetail(row.dataset.quotationId);
+                }
+            }
+
+            function updateStatus(message) {
+                var visible = visibleRows();
+                var selected = selectedRow();
+                var index = selected ? visible.indexOf(selected) : -1;
+                status.textContent = message || (visible.length === 0
+                    ? "沒有符合條件的報價單"
+                    : "共 " + visible.length + " 筆" + (index >= 0 ? "，目前第 " + (index + 1) + " 筆" : ""));
+            }
+
+            function syncToolbarState() {
+                var disabled = [];
+                var visible = visibleRows();
+                var selected = selectedRow();
+                var index = selected ? visible.indexOf(selected) : -1;
+
+                if (!selected) {
+                    disabled.push("delete", "copy", "edit", "first", "previous", "next", "last");
+                } else {
+                    if (selected.dataset.status !== "@QuotationStatuses.Quoting") {
+                        disabled.push("delete", "edit");
+                    }
+                    if (index <= 0) {
+                        disabled.push("first", "previous");
+                    }
+                    if (index < 0 || index >= visible.length - 1) {
+                        disabled.push("next", "last");
+                    }
+                }
+
+                if (!search.value.trim()) {
+                    disabled.push("cancel");
+                }
+
+                toolbarTarget.dataset.toolbarDisabledActions = disabled.join(",");
+                document.dispatchEvent(new CustomEvent("smartims:toolbar-refresh"));
+            }
+
+            async function loadQuotationDetail(id) {
+                var requestVersion = ++detailRequestVersion;
+                detailContent.classList.add("is-loading");
+                detailContent.innerHTML =
+                    '<div class="quotation-detail-empty"><span>正在載入報價單內容…</span></div>';
+
+                try {
+                    var response = await fetch(detailUrl + "?id=" + encodeURIComponent(id), {
+                        headers: { "X-Requested-With": "XMLHttpRequest" }
+                    });
+                    if (!response.ok) {
+                        throw new Error("load failed");
+                    }
+
+                    var html = await response.text();
+                    if (requestVersion !== detailRequestVersion) {
+                        return;
+                    }
+                    detailContent.innerHTML = html;
+                } catch (error) {
+                    if (requestVersion !== detailRequestVersion) {
+                        return;
+                    }
+                    detailContent.innerHTML =
+                        '<div class="quotation-detail-empty text-danger"><span>無法載入報價單內容，請稍後再試。</span></div>';
+                } finally {
+                    if (requestVersion === detailRequestVersion) {
+                        detailContent.classList.remove("is-loading");
+                    }
+                }
+            }
+
+            function applyFilter() {
+                var keyword = search.value.trim().toLowerCase();
+                rows().forEach(function (row) {
+                    var text = (row.dataset.searchText || "").toLowerCase();
+                    row.hidden = keyword.length > 0 && text.indexOf(keyword) < 0;
+                });
+
+                var selected = selectedRow();
+                if (!selected || selected.hidden) {
+                    selectRow(visibleRows()[0] || null, true);
+                } else {
+                    updateStatus();
+                }
+            }
+
+            function move(action) {
+                var visible = visibleRows();
+                if (visible.length === 0) {
+                    selectRow(null, false);
+                    return;
+                }
+
+                var index = visible.indexOf(selectedRow());
+                if (action === "first") index = 0;
+                if (action === "last") index = visible.length - 1;
+                if (action === "previous") index = Math.max(0, index <= 0 ? 0 : index - 1);
+                if (action === "next") index = Math.min(visible.length - 1, index < 0 ? 0 : index + 1);
+                selectRow(visible[index], true);
+            }
+
+            rows().forEach(function (row) {
+                row.addEventListener("click", function () {
+                    selectRow(row, true);
+                });
+                row.addEventListener("keydown", function (event) {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        selectRow(row, true);
+                    }
+                });
+            });
+
+            document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                var action = event.detail.action;
+                var row = selectedRow();
+                if (action === "create") {
+                    event.preventDefault();
+                    window.location.href = createUrl;
+                } else if (action === "copy") {
+                    event.preventDefault();
+                    if (row) {
+                        window.location.href = copyUrlTemplate.replace("__id__", row.dataset.quotationId);
+                    }
+                } else if (action === "edit") {
+                    event.preventDefault();
+                    if (row) {
+                        window.location.href = editUrlTemplate.replace("__id__", row.dataset.quotationId);
+                    }
+                } else if (action === "delete") {
+                    event.preventDefault();
+                    if (!row || row.dataset.status !== "@QuotationStatuses.Quoting") {
+                        updateStatus("只有「報價中」的報價單可以作廢");
+                        return;
+                    }
+                    var form = detailContent.querySelector('form[action*="Void"]');
+                    if (form && confirm("確定要作廢這張報價單嗎？")) {
+                        form.submit();
+                    }
+                } else if (action === "find") {
+                    event.preventDefault();
+                    search.focus();
+                    search.select();
+                } else if (action === "cancel") {
+                    event.preventDefault();
+                    search.value = "";
+                    applyFilter();
+                    syncToolbarState();
+                    search.focus();
+                } else if (["first", "previous", "next", "last"].indexOf(action) >= 0) {
+                    event.preventDefault();
+                    move(action);
+                }
+            });
+
+            search.addEventListener("input", function () {
+                applyFilter();
+                syncToolbarState();
+            });
+            if (!selectedRow()) {
+                selectRow(rows()[0] || null, true);
+            } else {
+                updateStatus();
+                syncToolbarState();
+            }
+        })();
+    </script>
+}

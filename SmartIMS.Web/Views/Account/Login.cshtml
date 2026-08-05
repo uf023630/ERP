@@ -23,7 +23,7 @@
             }
             <h1>@Model.Branding.LoginTitle</h1>
             <p>@Model.Branding.LoginSubtitle</p>
-            <form asp-action="Login" method="post" class="compact-form">
+            <form asp-action="Login" method="post" class="compact-form" data-login-form>
                 @Html.AntiForgeryToken()
                 <input type="hidden" asp-for="ReturnUrl" />
                 <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
@@ -34,10 +34,13 @@
                 </div>
                 <div class="mb-3">
                     <label asp-for="Password" class="form-label"></label>
-                    <input asp-for="Password" class="form-control form-control-sm" autocomplete="current-password" />
+                    <input asp-for="Password"
+                           class="form-control form-control-sm"
+                           autocomplete="current-password"
+                           data-login-password />
                     <span asp-validation-for="Password" class="text-danger small"></span>
                 </div>
-                <button type="submit" class="btn btn-primary btn-sm w-100">登入</button>
+                <button type="submit" class="btn btn-primary btn-sm w-100" data-login-submit>登入</button>
             </form>
         </div>
     </section>
@@ -45,4 +48,23 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            var form = document.querySelector("[data-login-form]");
+            var password = document.querySelector("[data-login-password]");
+            var submit = document.querySelector("[data-login-submit]");
+            if (!form || !password || !submit) {
+                return;
+            }
+
+            password.addEventListener("keydown", function (event) {
+                if (event.key !== "Enter" || event.isComposing) {
+                    return;
+                }
+
+                event.preventDefault();
+                form.requestSubmit(submit);
+            });
+        })();
+    </script>
 }

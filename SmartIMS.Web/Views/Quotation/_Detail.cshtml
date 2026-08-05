@@ -1,0 +1,129 @@
+@using SmartIMS.Web.Services
+@using SmartIMS.Web.ViewModels
+@model QuotationDetailViewModel
+@{
+    var isQuoting = Model.Status == QuotationStatuses.Quoting;
+    var canEdit = isQuoting && User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_QUOTATION_EDIT");
+    var canVoid = isQuoting && User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_QUOTATION_DELETE");
+}
+
+<div class="quotation-detail-header">
+    <div>
+        <div class="d-flex align-items-center gap-2">
+            <h2 class="h6 mb-0">@Model.QuoteNo</h2>
+            <span class="quotation-status quotation-status-@Model.Status.ToLowerInvariant()">
+                @QuotationStatuses.GetLabel(Model.Status)
+            </span>
+        </div>
+        <div class="text-muted small mt-1">
+            @Model.CustomerCode - @Model.CustomerName
+            @if (!string.IsNullOrWhiteSpace(Model.SalesOrderNo))
+            {
+                <span class="ms-2">銷售單：@Model.SalesOrderNo</span>
+            }
+        </div>
+    </div>
+    <div class="d-flex flex-wrap gap-1">
+        <a class="btn btn-sm btn-outline-secondary"
+           asp-action="Edit"
+           asp-route-id="@Model.SalesQuoteId">@(canEdit ? "修改" : "完整檢視")</a>
+        @if (canEdit)
+        {
+            <form asp-action="Convert"
+                  method="post"
+                  class="d-inline"
+                  onsubmit="return confirm('轉成銷售單後，報價內容將鎖定。確定繼續嗎？');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.SalesQuoteId" />
+                <button type="submit" class="btn btn-sm btn-success">轉銷售單</button>
+            </form>
+        }
+        @if (canVoid)
+        {
+            <form asp-action="Void"
+                  method="post"
+                  class="d-inline"
+                  onsubmit="return confirm('確定要作廢這張報價單嗎？');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@Model.SalesQuoteId" />
+                <button type="submit" class="btn btn-sm btn-outline-danger">作廢</button>
+            </form>
+        }
+    </div>
+</div>
+
+<div class="quotation-detail-meta">
+    <div><span>報價日期</span><strong>@Model.QuoteDate.ToString("yyyy/MM/dd")</strong></div>
+    <div><span>有效日期</span><strong>@Model.ExpireDate.ToString("yyyy/MM/dd")</strong></div>
+    <div><span>計稅方式</span><strong>@QuotationTaxTypes.GetLabel(Model.TaxType)</strong></div>
+    <div><span>稅率</span><strong>@Model.TaxRate.ToString("0.##")%</strong></div>
+    <div><span>客自備料</span><strong>@(Model.IsCustomerSuppliedMaterial ? "是" : "否")</strong></div>
+    <div><span>統一編號</span><strong>@(Model.CustomerTaxId ?? "—")</strong></div>
+    <div><span>聯絡人</span><strong>@(Model.CustomerContactName ?? "—")</strong></div>
+    <div><span>電話</span><strong>@(Model.CustomerPhone ?? "—")</strong></div>
+    <div class="quotation-detail-address"><span>地址</span><strong>@(Model.CustomerAddress ?? "—")</strong></div>
+</div>
+
+<div class="quotation-detail-lines">
+    <div class="table-responsive">
+        <table class="table table-sm table-bordered win-table mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 48px;">項次</th>
+                    <th style="width: 72px;">來源</th>
+                    <th style="width: 120px;">商品編號</th>
+                    <th>商品名稱</th>
+                    <th>規格</th>
+                    <th style="width: 70px;">單位</th>
+                    <th class="text-end" style="width: 100px;">數量</th>
+                    <th class="text-end" style="width: 115px;">單價</th>
+                    <th class="text-end" style="width: 125px;">小計</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Lines.Count == 0)
+                {
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-3">此報價單沒有商品明細</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var line in Model.Lines)
+                    {
+                        <tr>
+                            <td class="text-center">@line.LineNumber</td>
+                            <td>
+                                <span class="quotation-item-source">
+                                    @(line.ProductId.HasValue ? "商品" : "自訂")
+                                </span>
+                            </td>
+                            <td>@line.ProductCode</td>
+                            <td>@line.ProductName</td>
+                            <td>@line.Specification</td>
+                            <td>@line.Unit</td>
+                            <td class="text-end">@line.Quantity.ToString("N4").TrimEnd('0').TrimEnd('.')</td>
+                            <td class="text-end">@line.UnitPrice.ToString("N2")</td>
+                            <td class="text-end fw-semibold">@line.LineAmount.ToString("N2")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="quotation-detail-footer">
+    <div class="quotation-detail-remark">
+        <span>備註</span>
+        <div>@(string.IsNullOrWhiteSpace(Model.Remark) ? "—" : Model.Remark)</div>
+    </div>
+    <div class="quotation-summary quotation-detail-summary">
+        <div><span>未稅小計</span><strong>@Model.Subtotal.ToString("N2")</strong></div>
+        <div>
+            <span>@(Model.TaxType == QuotationTaxTypes.Inclusive ? "內含稅額" : "外加稅額")</span>
+            <strong>@Model.TaxAmount.ToString("N2")</strong>
+        </div>
+        <div class="quotation-total"><span>總計</span><strong>@Model.TotalAmount.ToString("N2")</strong></div>
+    </div>
+</div>

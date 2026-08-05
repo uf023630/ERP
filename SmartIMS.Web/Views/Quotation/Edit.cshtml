@@ -1,0 +1,891 @@
+@using SmartIMS.Web.Services
+@using SmartIMS.Web.ViewModels
+@model QuotationEditViewModel
+@{
+    var isNew = !Model.SalesQuoteId.HasValue;
+    var canEdit = Model.IsEditable &&
+        User.HasClaim(AuthService.PermissionClaimType, isNew
+            ? "PAGE_SALES_QUOTATION_CREATE"
+            : "PAGE_SALES_QUOTATION_EDIT");
+    var canConvert = Model.SalesQuoteId.HasValue &&
+        Model.IsEditable &&
+        User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_QUOTATION_EDIT");
+    var canVoid = Model.SalesQuoteId.HasValue &&
+        Model.IsEditable &&
+        User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_QUOTATION_DELETE");
+    var canCopy = Model.SalesQuoteId.HasValue &&
+        User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_QUOTATION_COPY");
+    var firstQuotationId = ViewData["FirstQuotationId"] as long?;
+    var previousQuotationId = ViewData["PreviousQuotationId"] as long?;
+    var nextQuotationId = ViewData["NextQuotationId"] as long?;
+    var lastQuotationId = ViewData["LastQuotationId"] as long?;
+    var selectedCustomer = Model.CustomerId.HasValue
+        ? Model.Customers.FirstOrDefault(customer => customer.CustomerId == Model.CustomerId.Value)
+        : null;
+
+    ViewData["Title"] = isNew ? "新增報價單" : $"報價單 {Model.QuoteNo}";
+    ViewData["ToolbarPageCode"] = "PAGE_SALES_QUOTATION";
+    ViewData["ToolbarActions"] = "create,delete,copy,edit,cancel,find,print,first,previous,next,last";
+}
+
+<div class="page-title-row">
+    <h1>@(isNew ? "新增報價單" : $"報價單 {Model.QuoteNo}")</h1>
+    <div class="d-flex align-items-center gap-2">
+        <span class="quotation-status quotation-status-@Model.Status.ToLowerInvariant()">
+            @QuotationStatuses.GetLabel(Model.Status)
+        </span>
+        @if (!string.IsNullOrWhiteSpace(Model.SalesOrderNo))
+        {
+            <span class="text-muted small">銷售單：@Model.SalesOrderNo</span>
+        }
+    </div>
+</div>
+
+<form asp-action="Save"
+      method="post"
+      class="quotation-edit-page"
+      data-quotation-edit
+      data-editable="@canEdit.ToString().ToLowerInvariant()">
+    @Html.AntiForgeryToken()
+    <input asp-for="SalesQuoteId" type="hidden" />
+    <input asp-for="Status" type="hidden" />
+    <input asp-for="QuoteNo" type="hidden" />
+    <input asp-for="Subtotal" type="hidden" data-subtotal-input />
+    <input asp-for="TaxAmount" type="hidden" data-tax-input />
+    <input asp-for="TotalAmount" type="hidden" data-total-input />
+
+    <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+    <span asp-validation-for="Lines" class="text-danger small"></span>
+
+    <div class="win-panel mb-2">
+        <div class="section-caption">報價資料</div>
+        <div class="row g-2 compact-form">
+            <div class="col-md-2">
+                <label class="form-label">報價單號</label>
+                <input class="form-control form-control-sm" value="@(Model.QuoteNo ?? "儲存後產生")" readonly />
+            </div>
+            <div class="col-md-2">
+                <label asp-for="QuoteDate" class="form-label">報價日期</label>
+                <input asp-for="QuoteDate" class="form-control form-control-sm" type="date" />
+                <span asp-validation-for="QuoteDate" class="text-danger small"></span>
+            </div>
+            <div class="col-md-2">
+                <label asp-for="ExpireDate" class="form-label">有效日期</label>
+                <input asp-for="ExpireDate" class="form-control form-control-sm" type="date" />
+                <span asp-validation-for="ExpireDate" class="text-danger small"></span>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="CustomerId" class="form-label">客戶</label>
+                <input asp-for="CustomerId" type="hidden" data-selected-customer-id />
+                <div class="input-group input-group-sm quotation-customer-picker">
+                    <input class="form-control"
+                           value="@(selectedCustomer is null ? "" : $"{selectedCustomer.CustomerCode} - {selectedCustomer.CustomerName}")"
+                           placeholder="請選擇客戶"
+                           readonly
+                           data-customer-display />
+                    @if (canEdit)
+                    {
+                        <button type="button"
+                                class="btn btn-outline-secondary quotation-customer-lookup"
+                                data-open-customer-picker
+                                title="選擇客戶"
+                                aria-label="選擇客戶">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5 21 21"></path></svg>
+                        </button>
+                    }
+                </div>
+                <span asp-validation-for="CustomerId" class="text-danger small"></span>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">統一編號</label>
+                <input class="form-control form-control-sm" value="@selectedCustomer?.TaxId" readonly data-customer-tax-id />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">聯絡人</label>
+                <input class="form-control form-control-sm" value="@selectedCustomer?.ContactName" readonly data-customer-contact />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">電話</label>
+                <input class="form-control form-control-sm" value="@selectedCustomer?.Phone" readonly data-customer-phone />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">地址</label>
+                <input class="form-control form-control-sm" value="@selectedCustomer?.Address" readonly data-customer-address />
+            </div>
+            <div class="col-md-2">
+                <label asp-for="TaxType" class="form-label">計稅方式</label>
+                <select asp-for="TaxType" class="form-select form-select-sm" data-tax-type>
+                    <option value="@QuotationTaxTypes.Exclusive">稅外加</option>
+                    <option value="@QuotationTaxTypes.Inclusive">含稅</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label asp-for="TaxRate" class="form-label">稅率（%）</label>
+                <input asp-for="TaxRate"
+                       class="form-control form-control-sm text-end"
+                       type="number"
+                       min="0"
+                       max="100"
+                       step="0.01"
+                       data-tax-rate />
+            </div>
+            <div class="col-md-2 quotation-customer-material-field">
+                <div class="form-check">
+                    <input asp-for="IsCustomerSuppliedMaterial" class="form-check-input" />
+                    <label asp-for="IsCustomerSuppliedMaterial" class="form-check-label">客自備料</label>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="Remark" class="form-label">備註</label>
+                <input asp-for="Remark" class="form-control form-control-sm" />
+            </div>
+        </div>
+    </div>
+
+    <div class="win-panel mb-2">
+        <div class="section-caption">商品明細</div>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered win-table quotation-lines mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 42px;">項次</th>
+                        <th style="width: 165px;">商品編號</th>
+                        <th style="min-width: 180px;">商品名稱</th>
+                        <th style="min-width: 170px;">規格</th>
+                        <th style="width: 80px;">單位</th>
+                        <th style="width: 105px;">數量</th>
+                        <th style="width: 125px;">單價</th>
+                        <th style="width: 135px;">小計</th>
+                        @if (canEdit)
+                        {
+                            <th style="width: 58px;">操作</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody data-lines-body>
+                    @for (var index = 0; index < Model.Lines.Count; index++)
+                    {
+                        var line = Model.Lines[index];
+                        <tr data-line>
+                            <td class="text-center" data-line-number>@(index + 1)</td>
+                            <td>
+                                <input type="hidden" name="Lines[@index].SalesQuoteItemId" value="@line.SalesQuoteItemId" data-field="SalesQuoteItemId" />
+                                <input type="hidden" name="Lines[@index].ProductId" value="@line.ProductId" data-field="ProductId" />
+                                <input type="hidden" name="Lines[@index].ItemSource" value="@line.ItemSource" data-field="ItemSource" />
+                                <div class="input-group input-group-sm quotation-product-code-group">
+                                    <input name="Lines[@index].ProductCode"
+                                           value="@line.ProductCode"
+                                           class="form-control"
+                                           data-field="ProductCode" />
+                                    @if (canEdit)
+                                    {
+                                        <button type="button"
+                                                class="btn btn-outline-secondary quotation-product-lookup"
+                                                data-open-product-picker
+                                                title="選擇商品"
+                                                aria-label="選擇第 @(index + 1) 項商品">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5 21 21"></path></svg>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                            <td><input name="Lines[@index].ProductName" value="@line.ProductName" class="form-control form-control-sm" required data-field="ProductName" /></td>
+                            <td><input name="Lines[@index].Specification" value="@line.Specification" class="form-control form-control-sm" data-field="Specification" /></td>
+                            <td><input name="Lines[@index].Unit" value="@line.Unit" class="form-control form-control-sm" data-field="Unit" /></td>
+                            <td><input name="Lines[@index].Quantity" value="@line.Quantity.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end" type="number" min="0.0001" step="0.0001" required data-field="Quantity" /></td>
+                            <td><input name="Lines[@index].UnitPrice" value="@line.UnitPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end" type="number" min="0" step="0.01" required data-field="UnitPrice" /></td>
+                            <td>
+                                <input name="Lines[@index].LineAmount"
+                                       value="@line.LineAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                       class="form-control form-control-sm text-end"
+                                       readonly
+                                       data-field="LineAmount"
+                                       data-line-amount />
+                            </td>
+                            @if (canEdit)
+                            {
+                                <td class="text-center">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-danger quotation-line-action"
+                                            data-remove-line
+                                            title="刪除商品"
+                                            aria-label="刪除第 @(index + 1) 項商品">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3"></path></svg>
+                                    </button>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (canEdit)
+        {
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" data-add-line>增加商品</button>
+                <span class="text-muted small">可選擇既有商品帶入，也可直接輸入商品資料。</span>
+            </div>
+        }
+    </div>
+
+    @if (canEdit)
+    {
+        <div class="modal fade quotation-lookup-modal quotation-customer-modal"
+             tabindex="-1"
+             aria-labelledby="quotationCustomerModalTitle"
+             aria-hidden="true"
+             data-customer-modal>
+            <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header py-2">
+                        <h2 class="modal-title fs-6" id="quotationCustomerModalTitle">選擇客戶</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="input-group input-group-sm mb-2">
+                            <input type="search"
+                                   class="form-control"
+                                   placeholder="輸入客戶編號或客戶名稱"
+                                   aria-label="客戶關鍵字"
+                                   data-customer-search />
+                            <button type="button" class="btn btn-outline-primary" data-search-customers>搜尋</button>
+                        </div>
+                        <div class="quotation-customer-results">
+                            <table class="table table-sm table-bordered win-table align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 135px;">客戶編號</th>
+                                        <th style="min-width: 170px;">客戶名稱</th>
+                                        <th style="width: 110px;">統一編號</th>
+                                        <th style="width: 120px;">聯絡人</th>
+                                        <th style="width: 130px;">電話</th>
+                                        <th style="min-width: 250px;">地址</th>
+                                    </tr>
+                                </thead>
+                                <tbody data-customer-results>
+                                    @foreach (var customer in Model.Customers)
+                                    {
+                                        var customerSearchText = $"{customer.CustomerCode} {customer.CustomerName} {customer.TaxId} {customer.ContactName} {customer.Phone} {customer.Address}";
+                                        <tr tabindex="0"
+                                            data-customer-option
+                                            data-search-text="@customerSearchText"
+                                            data-customer-id="@customer.CustomerId"
+                                            data-code="@customer.CustomerCode"
+                                            data-name="@customer.CustomerName"
+                                            data-tax-id="@customer.TaxId"
+                                            data-contact="@customer.ContactName"
+                                            data-phone="@customer.Phone"
+                                            data-address="@customer.Address"
+                                            data-tax-type="@customer.TaxType">
+                                            <td class="fw-semibold">@customer.CustomerCode</td>
+                                            <td>@customer.CustomerName</td>
+                                            <td>@customer.TaxId</td>
+                                            <td>@customer.ContactName</td>
+                                            <td>@customer.Phone</td>
+                                            <td>@customer.Address</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-muted small mt-2" data-customer-result-status></div>
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-sm btn-primary" data-confirm-customer disabled>確定</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade quotation-lookup-modal quotation-product-modal"
+             tabindex="-1"
+             aria-labelledby="quotationProductModalTitle"
+             aria-hidden="true"
+             data-product-modal>
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header py-2">
+                        <h2 class="modal-title fs-6" id="quotationProductModalTitle">選擇商品</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="input-group input-group-sm mb-2">
+                            <input type="search"
+                                   class="form-control"
+                                   placeholder="輸入商品編號或商品名稱"
+                                   aria-label="商品關鍵字"
+                                   data-product-search />
+                            <button type="button" class="btn btn-outline-primary" data-search-products>搜尋</button>
+                        </div>
+                        <div class="quotation-product-results">
+                            <table class="table table-sm table-bordered win-table align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 150px;">商品編號</th>
+                                        <th>商品名稱</th>
+                                        <th>規格</th>
+                                        <th style="width: 80px;">單位</th>
+                                        <th class="text-end" style="width: 130px;">單價</th>
+                                    </tr>
+                                </thead>
+                                <tbody data-product-results>
+                                    @foreach (var product in Model.Products)
+                                    {
+                                        var searchText = $"{product.ProductCode} {product.ProductName} {product.Specification}";
+                                        <tr tabindex="0"
+                                            data-product-option
+                                            data-search-text="@searchText"
+                                            data-product-id="@product.ProductId"
+                                            data-code="@product.ProductCode"
+                                            data-name="@product.ProductName"
+                                            data-specification="@product.Specification"
+                                            data-unit="@product.Unit"
+                                            data-price="@product.UnitPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)">
+                                            <td class="fw-semibold">@product.ProductCode</td>
+                                            <td>@product.ProductName</td>
+                                            <td>@product.Specification</td>
+                                            <td>@product.Unit</td>
+                                            <td class="text-end">@product.UnitPrice.ToString("N2")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="text-muted small mt-2" data-product-result-status></div>
+                    </div>
+                    <div class="modal-footer py-2">
+                        <button type="button" class="btn btn-sm btn-primary" data-confirm-product disabled>確定</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row g-2">
+        <div class="col-lg-8">
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-sm btn-outline-secondary" asp-action="Index">返回清單</a>
+                @if (canEdit)
+                {
+                    <button type="submit" class="btn btn-sm btn-primary">儲存報價單</button>
+                }
+                @if (canConvert)
+                {
+                    <button type="submit"
+                            class="btn btn-sm btn-success"
+                            formaction="@Url.Action("Convert", "Quotation", new { id = Model.SalesQuoteId })"
+                            formnovalidate
+                            onclick="return confirm('轉成銷售單後，報價內容將鎖定。確定繼續嗎？');">
+                        轉銷售單
+                    </button>
+                }
+                @if (canVoid)
+                {
+                    <button type="submit"
+                            class="btn btn-sm btn-outline-danger"
+                            data-void-quotation
+                            formaction="@Url.Action("Void", "Quotation", new { id = Model.SalesQuoteId })"
+                            formnovalidate
+                            onclick="return confirm('確定要作廢這張報價單嗎？');">
+                        作廢
+                    </button>
+                }
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="win-panel quotation-summary">
+                <div><span>未稅小計</span><strong data-subtotal-display>@Model.Subtotal.ToString("N2")</strong></div>
+                <div><span data-tax-label>稅額</span><strong data-tax-display>@Model.TaxAmount.ToString("N2")</strong></div>
+                <div class="quotation-total"><span>總計</span><strong data-total-display>@Model.TotalAmount.ToString("N2")</strong></div>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (function () {
+            var root = document.querySelector("[data-quotation-edit]");
+            if (!root) {
+                return;
+            }
+
+            var editable = root.dataset.editable === "true";
+            var body = root.querySelector("[data-lines-body]");
+            var productModalElement = root.querySelector("[data-product-modal]");
+            var productSearch = root.querySelector("[data-product-search]");
+            var productResultStatus = root.querySelector("[data-product-result-status]");
+            var confirmProductButton = root.querySelector("[data-confirm-product]");
+            var productModal = productModalElement ? bootstrap.Modal.getOrCreateInstance(productModalElement) : null;
+            var targetProductRow = null;
+            var selectedProductOption = null;
+            var customerIdInput = root.querySelector("[data-selected-customer-id]");
+            var customerDisplay = root.querySelector("[data-customer-display]");
+            var customerModalElement = root.querySelector("[data-customer-modal]");
+            var customerSearch = root.querySelector("[data-customer-search]");
+            var customerResultStatus = root.querySelector("[data-customer-result-status]");
+            var confirmCustomerButton = root.querySelector("[data-confirm-customer]");
+            var customerModal = customerModalElement ? bootstrap.Modal.getOrCreateInstance(customerModalElement) : null;
+            var selectedCustomerOption = null;
+            var taxType = root.querySelector("[data-tax-type]");
+            var taxRate = root.querySelector("[data-tax-rate]");
+            var subtotalInput = root.querySelector("[data-subtotal-input]");
+            var taxInput = root.querySelector("[data-tax-input]");
+            var totalInput = root.querySelector("[data-total-input]");
+            var subtotalDisplay = root.querySelector("[data-subtotal-display]");
+            var taxDisplay = root.querySelector("[data-tax-display]");
+            var totalDisplay = root.querySelector("[data-total-display]");
+            var taxLabel = root.querySelector("[data-tax-label]");
+
+            function roundMoney(value) {
+                return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+            }
+
+            function formatMoney(value) {
+                return Number(value || 0).toLocaleString("zh-TW", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
+
+            function lineRows() {
+                return Array.prototype.slice.call(body.querySelectorAll("[data-line]"));
+            }
+
+            function customerOptions() {
+                return Array.prototype.slice.call(root.querySelectorAll("[data-customer-option]"));
+            }
+
+            function selectCustomerOption(option) {
+                selectedCustomerOption = option;
+                customerOptions().forEach(function (item) {
+                    var selected = item === option;
+                    item.classList.toggle("is-selected", selected);
+                    item.setAttribute("aria-selected", selected ? "true" : "false");
+                });
+                confirmCustomerButton.disabled = !option;
+            }
+
+            function filterCustomers() {
+                var keyword = customerSearch.value.trim().toLowerCase();
+                var visibleCount = 0;
+                customerOptions().forEach(function (option) {
+                    var text = (option.dataset.searchText || "").toLowerCase();
+                    option.hidden = keyword.length > 0 && text.indexOf(keyword) < 0;
+                    if (!option.hidden) {
+                        visibleCount++;
+                    }
+                });
+
+                if (selectedCustomerOption && selectedCustomerOption.hidden) {
+                    selectCustomerOption(null);
+                }
+                customerResultStatus.textContent = visibleCount === 0
+                    ? "沒有符合條件的客戶"
+                    : "共 " + visibleCount + " 筆，請選擇客戶";
+            }
+
+            function openCustomerPicker() {
+                customerSearch.value = "";
+                selectCustomerOption(null);
+                filterCustomers();
+                customerModal.show();
+            }
+
+            function applySelectedCustomer() {
+                if (!selectedCustomerOption) {
+                    return;
+                }
+
+                customerIdInput.value = selectedCustomerOption.dataset.customerId || "";
+                customerDisplay.value = (selectedCustomerOption.dataset.code || "") + " - " + (selectedCustomerOption.dataset.name || "");
+                root.querySelector("[data-customer-tax-id]").value = selectedCustomerOption.dataset.taxId || "";
+                root.querySelector("[data-customer-contact]").value = selectedCustomerOption.dataset.contact || "";
+                root.querySelector("[data-customer-phone]").value = selectedCustomerOption.dataset.phone || "";
+                root.querySelector("[data-customer-address]").value = selectedCustomerOption.dataset.address || "";
+                customerModal.hide();
+                taxType.focus();
+            }
+
+            function createInput(field, type, value, extraClass) {
+                var input = document.createElement("input");
+                input.type = type || "text";
+                input.value = value == null ? "" : value;
+                input.dataset.field = field;
+                input.className = "form-control form-control-sm" + (extraClass ? " " + extraClass : "");
+                if (field === "Quantity") {
+                    input.min = "0.0001";
+                    input.step = "0.0001";
+                    input.required = true;
+                }
+                if (field === "UnitPrice") {
+                    input.min = "0";
+                    input.step = "0.01";
+                    input.required = true;
+                }
+                if (field === "ProductName") {
+                    input.required = true;
+                }
+                return input;
+            }
+
+            function appendInputCell(row, field, type, value, extraClass) {
+                var cell = document.createElement("td");
+                cell.appendChild(createInput(field, type, value, extraClass));
+                row.appendChild(cell);
+            }
+
+            function addLine(data) {
+                data = data || {};
+                var row = document.createElement("tr");
+                row.dataset.line = "";
+
+                var numberCell = document.createElement("td");
+                numberCell.className = "text-center";
+                numberCell.dataset.lineNumber = "";
+                row.appendChild(numberCell);
+
+                var productCodeCell = document.createElement("td");
+                ["SalesQuoteItemId", "ProductId", "ItemSource"].forEach(function (field) {
+                    var input = createInput(field, "hidden", field === "ProductId"
+                        ? data.productId
+                        : field === "ItemSource"
+                            ? (data.productId ? "Product" : "Manual")
+                            : "");
+                    input.className = "";
+                    productCodeCell.appendChild(input);
+                });
+
+                var productCodeGroup = document.createElement("div");
+                productCodeGroup.className = "input-group input-group-sm quotation-product-code-group";
+                var productCodeInput = createInput("ProductCode", "text", data.productCode || "");
+                productCodeInput.className = "form-control";
+                productCodeGroup.appendChild(productCodeInput);
+                var lookup = document.createElement("button");
+                lookup.type = "button";
+                lookup.className = "btn btn-outline-secondary quotation-product-lookup";
+                lookup.dataset.openProductPicker = "";
+                lookup.title = "選擇商品";
+                lookup.setAttribute("aria-label", "選擇商品");
+                lookup.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M15.5 15.5 21 21"></path></svg>';
+                productCodeGroup.appendChild(lookup);
+                productCodeCell.appendChild(productCodeGroup);
+                row.appendChild(productCodeCell);
+
+                appendInputCell(row, "ProductName", "text", data.productName || "");
+                appendInputCell(row, "Specification", "text", data.specification || "");
+                appendInputCell(row, "Unit", "text", data.unit || "");
+                appendInputCell(row, "Quantity", "number", data.quantity || 1, "text-end");
+                appendInputCell(row, "UnitPrice", "number", data.unitPrice || 0, "text-end");
+
+                var amountCell = document.createElement("td");
+                var amount = createInput("LineAmount", "text", "0", "text-end");
+                amount.readOnly = true;
+                amount.dataset.lineAmount = "";
+                amountCell.appendChild(amount);
+                row.appendChild(amountCell);
+
+                var actionCell = document.createElement("td");
+                actionCell.className = "text-center";
+                var remove = document.createElement("button");
+                remove.type = "button";
+                remove.className = "btn btn-sm btn-outline-danger quotation-line-action";
+                remove.dataset.removeLine = "";
+                remove.title = "刪除商品";
+                remove.setAttribute("aria-label", "刪除商品");
+                remove.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3"></path></svg>';
+                actionCell.appendChild(remove);
+                row.appendChild(actionCell);
+
+                body.appendChild(row);
+                renumberLines();
+                calculate();
+                row.querySelector('[data-field="ProductCode"]').focus();
+            }
+
+            function clearLine(row) {
+                ["SalesQuoteItemId", "ProductId", "ProductCode", "ProductName", "Specification", "Unit", "LineAmount"].forEach(function (field) {
+                    row.querySelector('[data-field="' + field + '"]').value = "";
+                });
+                row.querySelector('[data-field="ItemSource"]').value = "Manual";
+                row.querySelector('[data-field="Quantity"]').value = "1";
+                row.querySelector('[data-field="UnitPrice"]').value = "0";
+                calculate();
+                row.querySelector('[data-field="ProductCode"]').focus();
+            }
+
+            function productOptions() {
+                return Array.prototype.slice.call(root.querySelectorAll("[data-product-option]"));
+            }
+
+            function selectProductOption(option) {
+                selectedProductOption = option;
+                productOptions().forEach(function (item) {
+                    var selected = item === option;
+                    item.classList.toggle("is-selected", selected);
+                    item.setAttribute("aria-selected", selected ? "true" : "false");
+                });
+                confirmProductButton.disabled = !option;
+            }
+
+            function filterProducts() {
+                var keyword = productSearch.value.trim().toLowerCase();
+                var visibleCount = 0;
+                productOptions().forEach(function (option) {
+                    var text = (option.dataset.searchText || "").toLowerCase();
+                    option.hidden = keyword.length > 0 && text.indexOf(keyword) < 0;
+                    if (!option.hidden) {
+                        visibleCount++;
+                    }
+                });
+
+                if (selectedProductOption && selectedProductOption.hidden) {
+                    selectProductOption(null);
+                }
+                productResultStatus.textContent = visibleCount === 0
+                    ? "沒有符合條件的商品"
+                    : "共 " + visibleCount + " 筆，請選擇商品";
+            }
+
+            function openProductPicker(row) {
+                targetProductRow = row;
+                productSearch.value = "";
+                selectProductOption(null);
+                filterProducts();
+                productModal.show();
+            }
+
+            function applySelectedProduct() {
+                if (!targetProductRow || !selectedProductOption) {
+                    return;
+                }
+
+                targetProductRow.querySelector('[data-field="ProductId"]').value = selectedProductOption.dataset.productId || "";
+                targetProductRow.querySelector('[data-field="ItemSource"]').value = "Product";
+                targetProductRow.querySelector('[data-field="ProductCode"]').value = selectedProductOption.dataset.code || "";
+                targetProductRow.querySelector('[data-field="ProductName"]').value = selectedProductOption.dataset.name || "";
+                targetProductRow.querySelector('[data-field="Specification"]').value = selectedProductOption.dataset.specification || "";
+                targetProductRow.querySelector('[data-field="Unit"]').value = selectedProductOption.dataset.unit || "";
+                targetProductRow.querySelector('[data-field="UnitPrice"]').value = selectedProductOption.dataset.price || "0";
+                if (!(parseFloat(targetProductRow.querySelector('[data-field="Quantity"]').value) > 0)) {
+                    targetProductRow.querySelector('[data-field="Quantity"]').value = "1";
+                }
+                calculate();
+                productModal.hide();
+                targetProductRow.querySelector('[data-field="Quantity"]').focus();
+            }
+
+            function renumberLines() {
+                lineRows().forEach(function (row, index) {
+                    row.querySelector("[data-line-number]").textContent = String(index + 1);
+                    row.querySelectorAll("[data-field]").forEach(function (input) {
+                        input.name = "Lines[" + index + "]." + input.dataset.field;
+                    });
+                });
+            }
+
+            function calculate() {
+                var grossLineTotal = 0;
+                lineRows().forEach(function (row) {
+                    var quantity = parseFloat(row.querySelector('[data-field="Quantity"]').value) || 0;
+                    var price = parseFloat(row.querySelector('[data-field="UnitPrice"]').value) || 0;
+                    var amount = roundMoney(quantity * price);
+                    row.querySelector("[data-line-amount]").value = amount.toFixed(2);
+                    grossLineTotal += amount;
+                });
+
+                grossLineTotal = roundMoney(grossLineTotal);
+                var rate = parseFloat(taxRate.value) || 0;
+                var subtotal;
+                var tax;
+                var total;
+                if (taxType.value === "@QuotationTaxTypes.Inclusive") {
+                    total = grossLineTotal;
+                    tax = rate === 0 ? 0 : roundMoney(total * rate / (100 + rate));
+                    subtotal = roundMoney(total - tax);
+                    taxLabel.textContent = "內含稅額";
+                } else {
+                    subtotal = grossLineTotal;
+                    tax = roundMoney(subtotal * rate / 100);
+                    total = roundMoney(subtotal + tax);
+                    taxLabel.textContent = "外加稅額";
+                }
+
+                subtotalInput.value = subtotal.toFixed(2);
+                taxInput.value = tax.toFixed(2);
+                totalInput.value = total.toFixed(2);
+                subtotalDisplay.textContent = formatMoney(subtotal);
+                taxDisplay.textContent = formatMoney(tax);
+                totalDisplay.textContent = formatMoney(total);
+            }
+
+            if (editable) {
+                root.querySelector("[data-open-customer-picker]").addEventListener("click", openCustomerPicker);
+                customerOptions().forEach(function (option) {
+                    option.addEventListener("click", function () {
+                        selectCustomerOption(option);
+                    });
+                    option.addEventListener("dblclick", function () {
+                        selectCustomerOption(option);
+                        applySelectedCustomer();
+                    });
+                    option.addEventListener("keydown", function (event) {
+                        if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            selectCustomerOption(option);
+                        }
+                    });
+                });
+                customerSearch.addEventListener("input", filterCustomers);
+                customerSearch.addEventListener("keydown", function (event) {
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        filterCustomers();
+                    }
+                });
+                root.querySelector("[data-search-customers]").addEventListener("click", filterCustomers);
+                confirmCustomerButton.addEventListener("click", applySelectedCustomer);
+                customerModalElement.addEventListener("shown.bs.modal", function () {
+                    customerSearch.focus();
+                });
+
+                root.querySelector("[data-add-line]").addEventListener("click", function () {
+                    addLine({ quantity: 1, unitPrice: 0 });
+                });
+
+                body.addEventListener("click", function (event) {
+                    var lookup = event.target.closest("[data-open-product-picker]");
+                    if (lookup) {
+                        openProductPicker(lookup.closest("[data-line]"));
+                        return;
+                    }
+
+                    var remove = event.target.closest("[data-remove-line]");
+                    if (!remove) {
+                        return;
+                    }
+                    var row = remove.closest("[data-line]");
+                    if (lineRows().length === 1) {
+                        clearLine(row);
+                        return;
+                    }
+                    row.remove();
+                    renumberLines();
+                    calculate();
+                });
+
+                body.addEventListener("input", function (event) {
+                    if (event.target.matches('[data-field="Quantity"], [data-field="UnitPrice"]')) {
+                        calculate();
+                    }
+                });
+
+                taxType.addEventListener("change", calculate);
+                taxRate.addEventListener("input", calculate);
+
+                productOptions().forEach(function (option) {
+                    option.addEventListener("click", function () {
+                        selectProductOption(option);
+                    });
+                    option.addEventListener("dblclick", function () {
+                        selectProductOption(option);
+                        applySelectedProduct();
+                    });
+                    option.addEventListener("keydown", function (event) {
+                        if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            selectProductOption(option);
+                        }
+                    });
+                });
+                productSearch.addEventListener("input", filterProducts);
+                productSearch.addEventListener("keydown", function (event) {
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        filterProducts();
+                    }
+                });
+                root.querySelector("[data-search-products]").addEventListener("click", filterProducts);
+                confirmProductButton.addEventListener("click", applySelectedProduct);
+                productModalElement.addEventListener("shown.bs.modal", function () {
+                    productSearch.focus();
+                });
+            } else {
+                root.querySelectorAll("input:not([type=hidden]), select, textarea").forEach(function (element) {
+                    element.disabled = true;
+                });
+            }
+
+            document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                var action = event.detail.action;
+                if (action === "create") {
+                    event.preventDefault();
+                    window.location.href = "@Url.Action("Create", "Quotation")";
+                } else if (action === "delete") {
+                    event.preventDefault();
+                    var voidButton = root.querySelector("[data-void-quotation]");
+                    if (voidButton && confirm("確定要作廢這張報價單嗎？")) {
+                        root.requestSubmit(voidButton);
+                    }
+                } else if (action === "copy") {
+                    event.preventDefault();
+                    @if (canCopy)
+                    {
+                        <text>window.location.href = "@Url.Action("Copy", "Quotation", new { id = Model.SalesQuoteId })";</text>
+                    }
+                } else if (action === "edit") {
+                    event.preventDefault();
+                    if (editable) {
+                        root.requestSubmit();
+                    }
+                } else if (action === "cancel") {
+                    event.preventDefault();
+                    window.location.href = "@Url.Action("Index", "Quotation", new { id = Model.SalesQuoteId })";
+                } else if (action === "find") {
+                    event.preventDefault();
+                    customerDisplay.focus();
+                } else if (action === "first") {
+                    event.preventDefault();
+                    window.location.href = "@Url.Action("Edit", "Quotation", new { id = firstQuotationId })";
+                } else if (action === "previous") {
+                    event.preventDefault();
+                    window.location.href = "@Url.Action("Edit", "Quotation", new { id = previousQuotationId })";
+                } else if (action === "next") {
+                    event.preventDefault();
+                    window.location.href = "@Url.Action("Edit", "Quotation", new { id = nextQuotationId })";
+                } else if (action === "last") {
+                    event.preventDefault();
+                    window.location.href = "@Url.Action("Edit", "Quotation", new { id = lastQuotationId })";
+                }
+            });
+
+            var disabledToolbarActions = [];
+            if (!@canVoid.ToString().ToLowerInvariant()) {
+                disabledToolbarActions.push("delete");
+            }
+            if (!@canCopy.ToString().ToLowerInvariant()) {
+                disabledToolbarActions.push("copy");
+            }
+            if (!editable) {
+                disabledToolbarActions.push("edit");
+            }
+            if (!@firstQuotationId.HasValue.ToString().ToLowerInvariant() ||
+                "@firstQuotationId" === "@Model.SalesQuoteId") {
+                disabledToolbarActions.push("first", "previous");
+            }
+            if (!@lastQuotationId.HasValue.ToString().ToLowerInvariant() ||
+                "@lastQuotationId" === "@Model.SalesQuoteId") {
+                disabledToolbarActions.push("next", "last");
+            }
+            document.querySelector(".content-frame").dataset.toolbarDisabledActions =
+                disabledToolbarActions.join(",");
+
+            renumberLines();
+            calculate();
+        })();
+    </script>
+}

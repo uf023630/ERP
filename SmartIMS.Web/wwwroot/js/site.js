@@ -48,6 +48,7 @@
 
   function refreshToolbar(toolbar, target, permissions) {
     var supportedActions = toSet(target.dataset.toolbarActions);
+    var disabledActions = toSet(target.dataset.toolbarDisabledActions);
     var pageCode = target.dataset.toolbarPage || "";
 
     toolbar.querySelectorAll("[data-toolbar-action]").forEach(function (button) {
@@ -56,8 +57,9 @@
       var actionPermission = pageCode && permissionSuffix ? pageCode + "_" + permissionSuffix : "";
       var isSupported = supportedActions.has(action);
       var isAllowed = !actionPermission || permissions.has(actionPermission);
+      var isDisabledByPage = disabledActions.has(action);
 
-      button.disabled = !(isSupported && isAllowed);
+      button.disabled = !(isSupported && isAllowed) || isDisabledByPage;
     });
   }
 

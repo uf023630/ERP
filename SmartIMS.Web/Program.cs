@@ -13,6 +13,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<ListViewSettingsService>();
 builder.Services.AddScoped<ProductMaterialService>();
+builder.Services.AddScoped<QuotationService>();
 
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
