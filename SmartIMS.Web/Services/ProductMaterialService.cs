@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.Data.SqlClient;
 using SmartIMS.Web.Infrastructure;
 using SmartIMS.Web.ViewModels;
@@ -41,8 +42,11 @@ public sealed class ProductMaterialService
 
     public async Task<ProductMaterialItem> SaveMaterialAsync(ProductMaterialSaveRequest request)
     {
-        var materialCode = request.MaterialCode.Trim();
-        var materialName = request.MaterialName.Trim();
+        var validationErrors = new List<ValidationResult>();
+        if (!Validator.TryValidateObject(request, new ValidationContext(request), validationErrors, true) || request.ProductMaterialId is <= 0)
+            throw new InvalidOperationException("請確認材質編碼、名稱與欄位長度。");
+        var materialCode = (request.MaterialCode ?? "").Trim();
+        var materialName = (request.MaterialName ?? "").Trim();
         if (string.IsNullOrWhiteSpace(materialCode) || string.IsNullOrWhiteSpace(materialName))
         {
             throw new InvalidOperationException("材質編碼與材質名稱不可空白。");
@@ -63,7 +67,10 @@ public sealed class ProductMaterialService
                 """;
             insertCommand.Parameters.AddWithValue("@MaterialCode", materialCode);
             insertCommand.Parameters.AddWithValue("@MaterialName", materialName);
-            var newId = Convert.ToInt64(await insertCommand.ExecuteScalarAsync());
+            long newId;
+            try { newId = Convert.ToInt64(await insertCommand.ExecuteScalarAsync()); }
+            catch (SqlException ex) when (ex.Number is 2601 or 2627)
+            { throw new InvalidOperationException("材質編碼已存在。", ex); }
             return new ProductMaterialItem(newId, materialCode, materialName);
         }
 
@@ -74,13 +81,17 @@ public sealed class ProductMaterialService
                 MaterialName = @MaterialName,
                 IsActive = 1,
                 UpdatedAt = SYSUTCDATETIME()
-            WHERE ProductMaterialID = @ProductMaterialID;
+            WHERE ProductMaterialID = @ProductMaterialID AND IsActive = 1;
             """;
         updateCommand.Parameters.AddWithValue("@ProductMaterialID", request.ProductMaterialId.Value);
         updateCommand.Parameters.AddWithValue("@MaterialCode", materialCode);
         updateCommand.Parameters.AddWithValue("@MaterialName", materialName);
 
-        if (await updateCommand.ExecuteNonQueryAsync() == 0)
+        int affected;
+        try { affected = await updateCommand.ExecuteNonQueryAsync(); }
+        catch (SqlException ex) when (ex.Number is 2601 or 2627)
+        { throw new InvalidOperationException("材質編碼已存在。", ex); }
+        if (affected == 0)
         {
             throw new InvalidOperationException("找不到要修改的商品材質。");
         }
@@ -92,20 +103,27 @@ public sealed class ProductMaterialService
     {
         await using var connection = _connectionFactory.CreateConnection();
         await connection.OpenAsync();
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync();
+        await using var check = connection.CreateCommand();
+        check.Transaction = transaction;
+        check.CommandText = "SELECT ProductMaterialID FROM dbo.ProductMaterial WITH (UPDLOCK, HOLDLOCK) WHERE ProductMaterialID = @Id AND IsActive = 1;";
+        check.Parameters.AddWithValue("@Id", productMaterialId);
+        if (await check.ExecuteScalarAsync() is null)
+            throw new InvalidOperationException("找不到要刪除的商品材質。");
+
+        await using var usage = connection.CreateCommand();
+        usage.Transaction = transaction;
+        usage.CommandText = "SELECT COUNT(1) FROM dbo.Product WHERE ProductMaterialID = @Id AND IsActive = 1;";
+        usage.Parameters.AddWithValue("@Id", productMaterialId);
+        if (Convert.ToInt32(await usage.ExecuteScalarAsync()) > 0)
+            throw new InvalidOperationException("此材質仍有商品使用，請先修改或停用相關商品。");
 
         await using var command = connection.CreateCommand();
-        command.CommandText = """
-            UPDATE dbo.ProductMaterial
-            SET IsActive = 0,
-                UpdatedAt = SYSUTCDATETIME()
-            WHERE ProductMaterialID = @ProductMaterialID;
-            """;
-        command.Parameters.AddWithValue("@ProductMaterialID", productMaterialId);
-
-        if (await command.ExecuteNonQueryAsync() == 0)
-        {
-            throw new InvalidOperationException("找不到要刪除的商品材質。");
-        }
+        command.Transaction = transaction;
+        command.CommandText = "UPDATE dbo.ProductMaterial SET IsActive = 0, UpdatedAt = SYSUTCDATETIME() WHERE ProductMaterialID = @Id;";
+        command.Parameters.AddWithValue("@Id", productMaterialId);
+        await command.ExecuteNonQueryAsync();
+        await transaction.CommitAsync();
     }
 
     private static async Task EnsureMaterialCodeAvailableAsync(SqlConnection connection, long? productMaterialId, string materialCode)

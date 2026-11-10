@@ -102,8 +102,8 @@
                             <td>@line.ProductName</td>
                             <td>@line.Specification</td>
                             <td>@line.Unit</td>
-                            <td class="text-end">@line.Quantity.ToString("N4").TrimEnd('0').TrimEnd('.')</td>
-                            <td class="text-end">@line.UnitPrice.ToString("N2")</td>
+                            <td class="text-end">@line.Quantity.ToString("#,##0.0###")</td>
+                            <td class="text-end">@line.UnitPrice.ToString("#,##0.0###")</td>
                             <td class="text-end fw-semibold">@line.LineAmount.ToString("N2")</td>
                         </tr>
                     }

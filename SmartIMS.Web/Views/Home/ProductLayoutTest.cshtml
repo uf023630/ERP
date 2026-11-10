@@ -1,3 +1,4 @@
+@model SmartIMS.Web.ViewModels.ProductPageViewModel
 @{
     ViewData["Title"] = "商品資料管理";
     ViewData["ToolbarPageCode"] = "PAGE_PRODUCT_LAYOUT_TEST";
@@ -6,54 +7,69 @@
 
 <div class="page-title-row">
     <h1>商品資料管理</h1>
-    <span class="text-muted small">Layout 測試資料，不連接資料庫</span>
+    <span class="text-muted small">正式資料，連接資料庫</span>
 </div>
 
 <div class="product-layout-test" data-product-layout-test>
-    <div class="win-panel mb-2">
-        <div class="section-caption">商品明細</div>
+    <div class="win-panel mb-2 customer-detail-panel" data-detail-panel data-mode="empty">
+        <div class="section-caption customer-detail-heading"><span>商品明細</span><span class="customer-mode-badge" data-mode-badge aria-live="polite">尚未選取商品</span></div>
+        <p class="customer-mode-hint" data-mode-hint></p>
         <form id="productForm" class="compact-form product-detail-form">
+            @Html.AntiForgeryToken()
             <div class="row g-2">
                 <div class="col-md-3">
                     <label class="form-label" for="productCode">商品編號</label>
-                    <input id="productCode" name="productCode" class="form-control form-control-sm" required />
+                    <input id="productCode" name="productCode" maxlength="50" class="form-control form-control-sm" required />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label" for="productName">商品名稱</label>
-                    <input id="productName" name="productName" class="form-control form-control-sm" required />
+                    <input id="productName" name="productName" maxlength="200" class="form-control form-control-sm" required />
                 </div>
                 <div class="col-md-2">
                     <label class="form-label" for="material">材質</label>
-                    <input id="material" name="material" class="form-control form-control-sm" />
+                    <select id="material" name="material" class="form-select form-select-sm">
+                        <option value="">未指定材質</option>
+                        @foreach (var material in Model.Materials)
+                        {
+                            <option value="@material.ProductMaterialId">@material.MaterialCode - @material.MaterialName</option>
+                        }
+                    </select>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label" for="thickness">厚度</label>
-                    <input id="thickness" name="thickness" class="form-control form-control-sm" />
+                    <input id="thickness" name="thickness" maxlength="50" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-2">
                     <label class="form-label" for="unit">單位</label>
-                    <input id="unit" name="unit" class="form-control form-control-sm" />
+                    <input id="unit" name="unit" maxlength="20" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-2">
                     <label class="form-label" for="length">長度</label>
-                    <input id="length" name="length" class="form-control form-control-sm" />
+                    <input id="length" name="length" maxlength="50" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-2">
                     <label class="form-label" for="width">寬度</label>
-                    <input id="width" name="width" class="form-control form-control-sm" />
+                    <input id="width" name="width" maxlength="50" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="spec">規格</label>
-                    <input id="spec" name="spec" class="form-control form-control-sm" />
+                    <input id="spec" name="spec" maxlength="500" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-2">
                     <label class="form-label" for="price">單價</label>
-                    <input id="price" name="price" class="form-control form-control-sm" type="number" min="0" step="0.01" />
+                    <input id="price" name="price" class="form-control form-control-sm" type="number" min="0" max="9999999999999999.99" step="0.01" />
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="note">備註</label>
-                    <textarea id="note" name="note" class="form-control form-control-sm" rows="3"></textarea>
+                    <textarea id="note" name="note" maxlength="2000" class="form-control form-control-sm" rows="3"></textarea>
                 </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 mt-2">
+                @if (User.HasClaim("smartims.permission", "PAGE_PRODUCT_LAYOUT_TEST_CREATE") || User.HasClaim("smartims.permission", "PAGE_PRODUCT_LAYOUT_TEST_EDIT"))
+                {
+                    <button type="submit" class="btn btn-sm btn-primary" data-save>存檔</button>
+                }
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cancel>取消</button>
             </div>
         </form>
     </div>
@@ -110,46 +126,9 @@
                 return Object.assign({}, column);
             });
 
-            var products = [
-                {
-                    productCode: "P-AL-001",
-                    productName: "鋁板 5052",
-                    material: "鋁",
-                    thickness: "2.0mm",
-                    length: "2440",
-                    width: "1220",
-                    spec: "5052-H32",
-                    unit: "片",
-                    price: "1850",
-                    note: "常備料。"
-                },
-                {
-                    productCode: "P-SUS-010",
-                    productName: "不鏽鋼板",
-                    material: "SUS304",
-                    thickness: "1.5mm",
-                    length: "3000",
-                    width: "1500",
-                    spec: "霧面",
-                    unit: "片",
-                    price: "3200",
-                    note: "需確認表面保護膜。"
-                },
-                {
-                    productCode: "P-FE-220",
-                    productName: "黑鐵板",
-                    material: "SS400",
-                    thickness: "6.0mm",
-                    length: "2400",
-                    width: "1200",
-                    spec: "熱軋",
-                    unit: "片",
-                    price: "2100",
-                    note: "依批次報價。"
-                }
-            ];
+            var products = @Json.Serialize(Model.Products);
 
-            var selectedIndex = 0;
+            var selectedIndex = products.length ? 0 : -1;
             var filteredIndexes = products.map(function (_, index) { return index; });
             var root = document.querySelector("[data-product-layout-test]");
             var form = document.getElementById("productForm");
@@ -210,6 +189,17 @@
                 });
             }
 
+            var mode = "empty";
+            function updateMode(value) {
+                mode = value;
+                root.querySelector("[data-detail-panel]").dataset.mode = value;
+                root.querySelector("[data-mode-badge]").textContent = value === "new" ? "新增商品｜尚未存檔" : value === "edit" ? "編輯既有商品" : "尚未選取商品";
+                root.querySelector("[data-mode-hint]").textContent = value === "new" ? "目前正在建立新商品，按「存檔」新增至資料庫，按「取消」放棄新增。" : value === "edit" ? "目前正在編輯既有商品，按「存檔」更新此筆資料，按「取消」還原修改。" : "請選取下方商品，或按上方「新增」建立資料。";
+                var save = root.querySelector("[data-save]");
+                if (save) { save.textContent = "存檔"; save.disabled = busy || value === "empty"; }
+                root.querySelector("[data-cancel]").disabled = busy || value === "empty";
+            }
+
             function renderRows() {
                 tableBody.innerHTML = "";
                 filteredIndexes.forEach(function (productIndex) {
@@ -225,11 +215,11 @@
                         td.dataset.colKey = column.key;
                         td.style.width = column.width + "px";
                         td.style.minWidth = column.minWidth + "px";
-                        td.textContent = product[column.key] || "";
+                        td.textContent = product[column.key] ?? "";
                         row.appendChild(td);
                     });
                     row.addEventListener("click", function () {
-                        selectProduct(productIndex);
+                        if (!busy) selectProduct(productIndex);
                     });
                     tableBody.appendChild(row);
                 });
@@ -295,6 +285,7 @@
 
             function selectProduct(index) {
                 if (index < 0 || index >= products.length) {
+                    selectedIndex = -1;
                     clearForm();
                     return;
                 }
@@ -304,22 +295,30 @@
             }
 
             function fillForm(product) {
+                updateMode("edit");
                 fields.forEach(function (field) {
-                    getField(field).value = product[field] || "";
+                    getField(field).value = field === "material" ? (product.productMaterialId ?? "") : (product[field] ?? "");
                 });
             }
 
-            function clearForm() {
+            function clearForm(focus) {
+                updateMode("empty");
                 fields.forEach(function (field) {
                     getField(field).value = "";
                 });
-                getField("productCode").focus();
+                if (focus !== false) getField("productCode").focus();
             }
 
             function collectForm() {
                 var product = {};
                 fields.forEach(function (field) {
-                    product[field] = getField(field).value.trim();
+                    if (field === "material") {
+                        product.productMaterialId = getField(field).value ? Number(getField(field).value) : null;
+                    } else if (field === "price") {
+                        product.price = Number(getField(field).value || "0");
+                    } else {
+                        product[field] = getField(field).value.trim();
+                    }
                 });
                 return product;
             }
@@ -331,7 +330,9 @@
             function createProduct() {
                 clearForm();
                 selectedIndex = -1;
-                setStatus("新增模式，輸入資料後按修改圖示儲存到清單");
+                updateMode("new");
+                renderRows();
+                setStatus("新增資料，請按「存檔」儲存");
             }
 
             function copyProduct() {
@@ -347,43 +348,58 @@
                 selectedIndex = -1;
                 renderRows();
                 getField("productCode").focus();
-                setStatus("已複製目前商品，按修改圖示儲存成新資料");
+                updateMode("new");
+                setStatus("已複製為新增草稿，請按「存檔」儲存");
             }
 
-            function saveProduct() {
+            var busy = false;
+            function setBusy(value) {
+                busy = value;
+                Array.from(form.elements).forEach(function (element) { element.disabled = value; });
+                search.disabled = value;
+                updateMode(mode);
+            }
+            async function postProduct(url, payload) {
+                var response = await fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "RequestVerificationToken": form.querySelector('[name="__RequestVerificationToken"]').value },
+                    body: JSON.stringify(payload)
+                });
+                var data = await response.json().catch(function () { return {}; });
+                if (!response.ok || response.redirected) throw new Error(data.message || "操作失敗，請確認登入狀態與權限。");
+                return data;
+            }
+            async function saveProduct() {
+                if (busy || mode === "empty" || !form.reportValidity()) return;
                 var product = collectForm();
-                if (!product.productCode || !product.productName) {
-                    getField("productCode").focus();
-                    setStatus("商品編號與商品名稱不可空白");
-                    return;
-                }
-                if (selectedIndex >= 0) {
-                    products[selectedIndex] = product;
-                    setStatus("已修改目前商品");
-                } else {
-                    products.push(product);
-                    selectedIndex = products.length - 1;
-                    setStatus("已新增商品");
-                }
-                applyFilter();
-                selectProduct(selectedIndex);
+                var index = selectedIndex;
+                product.productId = index >= 0 ? products[index].productId : null;
+                setBusy(true);
+                try {
+                    var saved = await postProduct('@Url.Action("SaveProduct", "Home")', product);
+                    if (index >= 0) products[index] = saved;
+                    else { products.push(saved); index = products.length - 1; }
+                    selectedIndex = index;
+                    updateMode("edit");
+                    applyFilter();
+                    if (selectedIndex >= 0) selectProduct(selectedIndex); else clearForm();
+                    setStatus("商品資料已儲存至資料庫");
+                } catch (error) { setStatus(error.message); }
+                finally { setBusy(false); }
             }
-
-            function deleteProduct() {
-                if (selectedIndex < 0 || products.length === 0) {
-                    setStatus("沒有可刪除的商品");
-                    return;
-                }
-                products.splice(selectedIndex, 1);
-                selectedIndex = Math.min(selectedIndex, products.length - 1);
-                applyFilter();
-                if (products.length > 0) {
-                    selectProduct(filteredIndexes[0] ?? selectedIndex);
-                } else {
-                    clearForm();
-                    renderRows();
-                }
-                setStatus("已刪除商品");
+            async function deleteProduct() {
+                if (busy || selectedIndex < 0) return;
+                if (!window.confirm("確定要刪除目前商品？歷史報價明細會保留。")) return;
+                setBusy(true);
+                try {
+                    await postProduct('@Url.Action("DeleteProduct", "Home")', { productId: products[selectedIndex].productId });
+                    products.splice(selectedIndex, 1);
+                    selectedIndex = -1;
+                    applyFilter();
+                    if (selectedIndex >= 0) selectProduct(selectedIndex); else clearForm();
+                    setStatus("已刪除商品");
+                } catch (error) { setStatus(error.message); }
+                finally { setBusy(false); }
             }
 
             function cancelEdit() {
@@ -411,7 +427,7 @@
                             return String(products[index][field] || "").toLowerCase().indexOf(keyword) >= 0;
                         });
                     });
-                if (filteredIndexes.indexOf(selectedIndex) < 0) {
+                if (mode !== "new" && filteredIndexes.indexOf(selectedIndex) < 0) {
                     selectedIndex = filteredIndexes.length > 0 ? filteredIndexes[0] : -1;
                 }
                 renderRows();
@@ -468,6 +484,7 @@
             });
 
             document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                if (busy) { event.preventDefault(); return; }
                 var action = event.detail.action;
                 if (action === "create") {
                     event.preventDefault();
@@ -495,7 +512,9 @@
                 }
             });
 
-            search.addEventListener("input", applyFilter);
+            root.querySelector("[data-cancel]").addEventListener("click", cancelEdit);
+            form.addEventListener("submit", function (event) { event.preventDefault(); saveProduct(); });
+            search.addEventListener("input", function () { applyFilter(); if (mode === "new") return; if (selectedIndex >= 0) fillForm(products[selectedIndex]); else clearForm(false); });
             renderAll();
             selectProduct(0);
         })();

@@ -1,18 +1,80 @@
+-- SmartIMS database creation script. Enable SQLCMD Mode in SSMS.
+-- Creates schema and seed settings only; business records and passwords are not exported.
+-- Intended for new databases. Re-running may update seed settings and customer codes.
+-- The application initializes the Admin password at first startup.
 :setvar DatabaseName "SmartIMS_NewVersion"
-
 IF DB_ID(N'$(DatabaseName)') IS NULL
 BEGIN
     EXEC(N'CREATE DATABASE [$(DatabaseName)]');
 END;
 GO
-
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
 USE [$(DatabaseName)];
 GO
-
-IF OBJECT_ID(N'dbo.AppUser', N'U') IS NULL
+IF OBJECT_ID('dbo.Customer', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Customer (
+        CustomerID BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        CustomerCode NVARCHAR(50) NOT NULL,
+        CustomerName NVARCHAR(200) NOT NULL,
+        TaxId NVARCHAR(20) NULL,
+        ContactName NVARCHAR(100) NULL,
+        Phone NVARCHAR(50) NULL,
+        Address NVARCHAR(500) NULL,
+        TaxType VARCHAR(20) NULL,
+        IsActive BIT NOT NULL DEFAULT (1)
+    );
+END;
+IF OBJECT_ID('dbo.Product', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.Product (
+        ProductID BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        ProductCode NVARCHAR(50) NOT NULL,
+        ProductName NVARCHAR(200) NOT NULL,
+        Specification NVARCHAR(500) NULL,
+        Unit NVARCHAR(20) NULL,
+        UnitPrice DECIMAL(18,2) NOT NULL DEFAULT (0),
+        IsActive BIT NOT NULL DEFAULT (1)
+    );
+END;
+GO
+IF COL_LENGTH('dbo.Customer', 'Fax') IS NULL
+    ALTER TABLE dbo.Customer ADD Fax NVARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Customer', 'Email') IS NULL
+    ALTER TABLE dbo.Customer ADD Email NVARCHAR(254) NULL;
+IF COL_LENGTH('dbo.Customer', 'LineId') IS NULL
+    ALTER TABLE dbo.Customer ADD LineId NVARCHAR(100) NULL;
+IF COL_LENGTH('dbo.Customer', 'ZipCode') IS NULL
+    ALTER TABLE dbo.Customer ADD ZipCode NVARCHAR(20) NULL;
+IF COL_LENGTH('dbo.Customer', 'PaymentMethod') IS NULL
+    ALTER TABLE dbo.Customer ADD PaymentMethod NVARCHAR(20) NOT NULL DEFAULT (N'月結');
+IF COL_LENGTH('dbo.Customer', 'BankAccount') IS NULL
+    ALTER TABLE dbo.Customer ADD BankAccount NVARCHAR(100) NULL;
+IF COL_LENGTH('dbo.Customer', 'Note') IS NULL
+    ALTER TABLE dbo.Customer ADD Note NVARCHAR(2000) NULL;
+IF COL_LENGTH('dbo.Customer', 'PaymentTermDays') IS NULL
+    ALTER TABLE dbo.Customer ADD PaymentTermDays INT NOT NULL DEFAULT (30);
+IF EXISTS (
+    SELECT 1 FROM sys.extended_properties
+    WHERE class = 1 AND major_id = OBJECT_ID(N'dbo.Customer')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID(N'dbo.Customer'), N'CustomerName', 'ColumnId')
+      AND name = N'MS_Description'
+)
+    EXEC sys.sp_updateextendedproperty @name=N'MS_Description', @value=N'公司名稱',
+        @level0type=N'SCHEMA', @level0name=N'dbo',
+        @level1type=N'TABLE', @level1name=N'Customer',
+        @level2type=N'COLUMN', @level2name=N'CustomerName';
+ELSE
+    EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'公司名稱',
+        @level0type=N'SCHEMA', @level0name=N'dbo',
+        @level1type=N'TABLE', @level1name=N'Customer',
+        @level2type=N'COLUMN', @level2name=N'CustomerName';
+GO
+IF OBJECT_ID('dbo.AppUser', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.AppUser (
-        AppUserID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_AppUser PRIMARY KEY,
+        AppUserID BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         UserName NVARCHAR(100) NOT NULL,
         DisplayName NVARCHAR(100) NOT NULL,
         Department NVARCHAR(100) NULL,
@@ -24,30 +86,26 @@ BEGIN
         UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_AppUser_UpdatedAt DEFAULT (SYSUTCDATETIME())
     );
 END;
-GO
 
-IF COL_LENGTH(N'dbo.AppUser', N'Department') IS NULL
+IF COL_LENGTH('dbo.AppUser', 'Department') IS NULL
     ALTER TABLE dbo.AppUser ADD Department NVARCHAR(100) NULL;
-IF COL_LENGTH(N'dbo.AppUser', N'Email') IS NULL
+IF COL_LENGTH('dbo.AppUser', 'Email') IS NULL
     ALTER TABLE dbo.AppUser ADD Email NVARCHAR(200) NULL;
-IF COL_LENGTH(N'dbo.AppUser', N'PasswordHash') IS NULL
+IF COL_LENGTH('dbo.AppUser', 'PasswordHash') IS NULL
     ALTER TABLE dbo.AppUser ADD PasswordHash NVARCHAR(300) NULL;
-IF COL_LENGTH(N'dbo.AppUser', N'IsActive') IS NULL
+IF COL_LENGTH('dbo.AppUser', 'IsActive') IS NULL
     ALTER TABLE dbo.AppUser ADD IsActive BIT NOT NULL CONSTRAINT DF_AppUser_IsActive_Alter DEFAULT (1);
-IF COL_LENGTH(N'dbo.AppUser', N'LastLoginAt') IS NULL
+IF COL_LENGTH('dbo.AppUser', 'LastLoginAt') IS NULL
     ALTER TABLE dbo.AppUser ADD LastLoginAt DATETIME2(0) NULL;
-IF COL_LENGTH(N'dbo.AppUser', N'UpdatedAt') IS NULL
+IF COL_LENGTH('dbo.AppUser', 'UpdatedAt') IS NULL
     ALTER TABLE dbo.AppUser ADD UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_AppUser_UpdatedAt_Alter DEFAULT (SYSUTCDATETIME());
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_AppUser_UserName' AND object_id = OBJECT_ID('dbo.AppUser'))
+    EXEC('CREATE UNIQUE INDEX UQ_AppUser_UserName ON dbo.AppUser(UserName);');
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_AppUser_UserName' AND object_id = OBJECT_ID(N'dbo.AppUser'))
-    CREATE UNIQUE INDEX UQ_AppUser_UserName ON dbo.AppUser(UserName);
-GO
-
-IF OBJECT_ID(N'dbo.AppPermission', N'U') IS NULL
+IF OBJECT_ID('dbo.AppPermission', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.AppPermission (
-        PermissionID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_AppPermission PRIMARY KEY,
+        PermissionID BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         PermissionCode NVARCHAR(100) NOT NULL,
         PermissionName NVARCHAR(100) NOT NULL,
         ModuleCode NVARCHAR(50) NOT NULL,
@@ -57,13 +115,10 @@ BEGIN
         CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_AppPermission_CreatedAt DEFAULT (SYSUTCDATETIME())
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_AppPermission_Code' AND object_id = OBJECT_ID('dbo.AppPermission'))
+    EXEC('CREATE UNIQUE INDEX UQ_AppPermission_Code ON dbo.AppPermission(PermissionCode);');
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_AppPermission_Code' AND object_id = OBJECT_ID(N'dbo.AppPermission'))
-    CREATE UNIQUE INDEX UQ_AppPermission_Code ON dbo.AppPermission(PermissionCode);
-GO
-
-IF OBJECT_ID(N'dbo.UserPermission', N'U') IS NULL
+IF OBJECT_ID('dbo.UserPermission', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.UserPermission (
         AppUserID BIGINT NOT NULL,
@@ -72,15 +127,12 @@ BEGIN
         CONSTRAINT PK_UserPermission PRIMARY KEY (AppUserID, PermissionID)
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_UserPermission_User' AND parent_object_id = OBJECT_ID('dbo.UserPermission'))
+    EXEC('ALTER TABLE dbo.UserPermission ADD CONSTRAINT FK_UserPermission_User FOREIGN KEY (AppUserID) REFERENCES dbo.AppUser(AppUserID) ON DELETE CASCADE;');
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_UserPermission_Permission' AND parent_object_id = OBJECT_ID('dbo.UserPermission'))
+    EXEC('ALTER TABLE dbo.UserPermission ADD CONSTRAINT FK_UserPermission_Permission FOREIGN KEY (PermissionID) REFERENCES dbo.AppPermission(PermissionID) ON DELETE CASCADE;');
 
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_UserPermission_User' AND parent_object_id = OBJECT_ID(N'dbo.UserPermission'))
-    ALTER TABLE dbo.UserPermission ADD CONSTRAINT FK_UserPermission_User FOREIGN KEY (AppUserID) REFERENCES dbo.AppUser(AppUserID) ON DELETE CASCADE;
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_UserPermission_Permission' AND parent_object_id = OBJECT_ID(N'dbo.UserPermission'))
-    ALTER TABLE dbo.UserPermission ADD CONSTRAINT FK_UserPermission_Permission FOREIGN KEY (PermissionID) REFERENCES dbo.AppPermission(PermissionID) ON DELETE CASCADE;
-GO
-
-IF OBJECT_ID(N'dbo.AppPage', N'U') IS NULL
+IF OBJECT_ID('dbo.AppPage', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.AppPage (
         PageID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_AppPage PRIMARY KEY,
@@ -95,13 +147,10 @@ BEGIN
         CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_AppPage_CreatedAt DEFAULT (SYSUTCDATETIME())
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_AppPage_Code' AND object_id = OBJECT_ID('dbo.AppPage'))
+    EXEC('CREATE UNIQUE INDEX UQ_AppPage_Code ON dbo.AppPage(PageCode);');
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_AppPage_Code' AND object_id = OBJECT_ID(N'dbo.AppPage'))
-    CREATE UNIQUE INDEX UQ_AppPage_Code ON dbo.AppPage(PageCode);
-GO
-
-IF OBJECT_ID(N'dbo.AppAction', N'U') IS NULL
+IF OBJECT_ID('dbo.AppAction', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.AppAction (
         ActionID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_AppAction PRIMARY KEY,
@@ -113,13 +162,10 @@ BEGIN
         CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_AppAction_CreatedAt DEFAULT (SYSUTCDATETIME())
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_AppAction_Code' AND object_id = OBJECT_ID('dbo.AppAction'))
+    EXEC('CREATE UNIQUE INDEX UQ_AppAction_Code ON dbo.AppAction(ActionCode);');
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_AppAction_Code' AND object_id = OBJECT_ID(N'dbo.AppAction'))
-    CREATE UNIQUE INDEX UQ_AppAction_Code ON dbo.AppAction(ActionCode);
-GO
-
-IF OBJECT_ID(N'dbo.PageAction', N'U') IS NULL
+IF OBJECT_ID('dbo.PageAction', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.PageAction (
         PageActionID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_PageAction PRIMARY KEY,
@@ -130,19 +176,16 @@ BEGIN
         CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_PageAction_CreatedAt DEFAULT (SYSUTCDATETIME())
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_PageAction_Page_Action' AND object_id = OBJECT_ID('dbo.PageAction'))
+    EXEC('CREATE UNIQUE INDEX UQ_PageAction_Page_Action ON dbo.PageAction(PageID, ActionID);');
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_PageAction_PermissionCode' AND object_id = OBJECT_ID('dbo.PageAction'))
+    EXEC('CREATE UNIQUE INDEX UQ_PageAction_PermissionCode ON dbo.PageAction(PermissionCode);');
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_PageAction_Page' AND parent_object_id = OBJECT_ID('dbo.PageAction'))
+    EXEC('ALTER TABLE dbo.PageAction ADD CONSTRAINT FK_PageAction_Page FOREIGN KEY (PageID) REFERENCES dbo.AppPage(PageID) ON DELETE CASCADE;');
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_PageAction_Action' AND parent_object_id = OBJECT_ID('dbo.PageAction'))
+    EXEC('ALTER TABLE dbo.PageAction ADD CONSTRAINT FK_PageAction_Action FOREIGN KEY (ActionID) REFERENCES dbo.AppAction(ActionID) ON DELETE CASCADE;');
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_PageAction_Page_Action' AND object_id = OBJECT_ID(N'dbo.PageAction'))
-    CREATE UNIQUE INDEX UQ_PageAction_Page_Action ON dbo.PageAction(PageID, ActionID);
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_PageAction_PermissionCode' AND object_id = OBJECT_ID(N'dbo.PageAction'))
-    CREATE UNIQUE INDEX UQ_PageAction_PermissionCode ON dbo.PageAction(PermissionCode);
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_PageAction_Page' AND parent_object_id = OBJECT_ID(N'dbo.PageAction'))
-    ALTER TABLE dbo.PageAction ADD CONSTRAINT FK_PageAction_Page FOREIGN KEY (PageID) REFERENCES dbo.AppPage(PageID) ON DELETE CASCADE;
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_PageAction_Action' AND parent_object_id = OBJECT_ID(N'dbo.PageAction'))
-    ALTER TABLE dbo.PageAction ADD CONSTRAINT FK_PageAction_Action FOREIGN KEY (ActionID) REFERENCES dbo.AppAction(ActionID) ON DELETE CASCADE;
-GO
-
-IF OBJECT_ID(N'dbo.AppRole', N'U') IS NULL
+IF OBJECT_ID('dbo.AppRole', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.AppRole (
         RoleID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_AppRole PRIMARY KEY,
@@ -154,13 +197,10 @@ BEGIN
         CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_AppRole_CreatedAt DEFAULT (SYSUTCDATETIME())
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_AppRole_Code' AND object_id = OBJECT_ID('dbo.AppRole'))
+    EXEC('CREATE UNIQUE INDEX UQ_AppRole_Code ON dbo.AppRole(RoleCode);');
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_AppRole_Code' AND object_id = OBJECT_ID(N'dbo.AppRole'))
-    CREATE UNIQUE INDEX UQ_AppRole_Code ON dbo.AppRole(RoleCode);
-GO
-
-IF OBJECT_ID(N'dbo.UserRole', N'U') IS NULL
+IF OBJECT_ID('dbo.UserRole', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.UserRole (
         AppUserID BIGINT NOT NULL,
@@ -169,15 +209,12 @@ BEGIN
         CONSTRAINT PK_UserRole PRIMARY KEY (AppUserID, RoleID)
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_UserRole_User' AND parent_object_id = OBJECT_ID('dbo.UserRole'))
+    EXEC('ALTER TABLE dbo.UserRole ADD CONSTRAINT FK_UserRole_User FOREIGN KEY (AppUserID) REFERENCES dbo.AppUser(AppUserID) ON DELETE CASCADE;');
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_UserRole_Role' AND parent_object_id = OBJECT_ID('dbo.UserRole'))
+    EXEC('ALTER TABLE dbo.UserRole ADD CONSTRAINT FK_UserRole_Role FOREIGN KEY (RoleID) REFERENCES dbo.AppRole(RoleID) ON DELETE CASCADE;');
 
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_UserRole_User' AND parent_object_id = OBJECT_ID(N'dbo.UserRole'))
-    ALTER TABLE dbo.UserRole ADD CONSTRAINT FK_UserRole_User FOREIGN KEY (AppUserID) REFERENCES dbo.AppUser(AppUserID) ON DELETE CASCADE;
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_UserRole_Role' AND parent_object_id = OBJECT_ID(N'dbo.UserRole'))
-    ALTER TABLE dbo.UserRole ADD CONSTRAINT FK_UserRole_Role FOREIGN KEY (RoleID) REFERENCES dbo.AppRole(RoleID) ON DELETE CASCADE;
-GO
-
-IF OBJECT_ID(N'dbo.RolePageAction', N'U') IS NULL
+IF OBJECT_ID('dbo.RolePageAction', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.RolePageAction (
         RoleID BIGINT NOT NULL,
@@ -186,18 +223,15 @@ BEGIN
         CONSTRAINT PK_RolePageAction PRIMARY KEY (RoleID, PageActionID)
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_RolePageAction_Role' AND parent_object_id = OBJECT_ID('dbo.RolePageAction'))
+    EXEC('ALTER TABLE dbo.RolePageAction ADD CONSTRAINT FK_RolePageAction_Role FOREIGN KEY (RoleID) REFERENCES dbo.AppRole(RoleID) ON DELETE CASCADE;');
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_RolePageAction_PageAction' AND parent_object_id = OBJECT_ID('dbo.RolePageAction'))
+    EXEC('ALTER TABLE dbo.RolePageAction ADD CONSTRAINT FK_RolePageAction_PageAction FOREIGN KEY (PageActionID) REFERENCES dbo.PageAction(PageActionID) ON DELETE CASCADE;');
 
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_RolePageAction_Role' AND parent_object_id = OBJECT_ID(N'dbo.RolePageAction'))
-    ALTER TABLE dbo.RolePageAction ADD CONSTRAINT FK_RolePageAction_Role FOREIGN KEY (RoleID) REFERENCES dbo.AppRole(RoleID) ON DELETE CASCADE;
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_RolePageAction_PageAction' AND parent_object_id = OBJECT_ID(N'dbo.RolePageAction'))
-    ALTER TABLE dbo.RolePageAction ADD CONSTRAINT FK_RolePageAction_PageAction FOREIGN KEY (PageActionID) REFERENCES dbo.PageAction(PageActionID) ON DELETE CASCADE;
-GO
-
-IF OBJECT_ID(N'dbo.SystemSetting', N'U') IS NULL
+IF OBJECT_ID('dbo.SystemSetting', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.SystemSetting (
-        SystemSettingID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_SystemSetting PRIMARY KEY,
+        SystemSettingID BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         SettingKey NVARCHAR(100) NOT NULL,
         SettingName NVARCHAR(100) NOT NULL,
         Category NVARCHAR(100) NOT NULL,
@@ -207,13 +241,10 @@ BEGIN
         UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_SystemSetting_UpdatedAt DEFAULT (SYSUTCDATETIME())
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_SystemSetting_Key' AND object_id = OBJECT_ID('dbo.SystemSetting'))
+    EXEC('CREATE UNIQUE INDEX UQ_SystemSetting_Key ON dbo.SystemSetting(SettingKey);');
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_SystemSetting_Key' AND object_id = OBJECT_ID(N'dbo.SystemSetting'))
-    CREATE UNIQUE INDEX UQ_SystemSetting_Key ON dbo.SystemSetting(SettingKey);
-GO
-
-IF OBJECT_ID(N'dbo.UserListViewSetting', N'U') IS NULL
+IF OBJECT_ID('dbo.UserListViewSetting', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.UserListViewSetting (
         AppUserID BIGINT NOT NULL,
@@ -223,16 +254,13 @@ BEGIN
         CONSTRAINT PK_UserListViewSetting PRIMARY KEY (AppUserID, ListKey)
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_UserListViewSetting_User' AND parent_object_id = OBJECT_ID('dbo.UserListViewSetting'))
+    EXEC('ALTER TABLE dbo.UserListViewSetting ADD CONSTRAINT FK_UserListViewSetting_User FOREIGN KEY (AppUserID) REFERENCES dbo.AppUser(AppUserID) ON DELETE CASCADE;');
 
-IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_UserListViewSetting_User' AND parent_object_id = OBJECT_ID(N'dbo.UserListViewSetting'))
-    ALTER TABLE dbo.UserListViewSetting ADD CONSTRAINT FK_UserListViewSetting_User FOREIGN KEY (AppUserID) REFERENCES dbo.AppUser(AppUserID) ON DELETE CASCADE;
-GO
-
-IF OBJECT_ID(N'dbo.AuditLog', N'U') IS NULL
+IF OBJECT_ID('dbo.AuditLog', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.AuditLog (
-        AuditLogID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_AuditLog PRIMARY KEY,
+        AuditLogID BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         EventTime DATETIME2(0) NOT NULL CONSTRAINT DF_AuditLog_EventTime DEFAULT (SYSUTCDATETIME()),
         ActorUserName NVARCHAR(100) NULL,
         ModuleCode NVARCHAR(50) NOT NULL,
@@ -243,16 +271,13 @@ BEGIN
         IpAddress NVARCHAR(100) NULL
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AuditLog_EventTime' AND object_id = OBJECT_ID('dbo.AuditLog'))
+    EXEC('CREATE INDEX IX_AuditLog_EventTime ON dbo.AuditLog(EventTime DESC);');
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AuditLog_EventTime' AND object_id = OBJECT_ID(N'dbo.AuditLog'))
-    CREATE INDEX IX_AuditLog_EventTime ON dbo.AuditLog(EventTime DESC);
-GO
-
-IF OBJECT_ID(N'dbo.ProductMaterial', N'U') IS NULL
+IF OBJECT_ID('dbo.ProductMaterial', 'U') IS NULL
 BEGIN
     CREATE TABLE dbo.ProductMaterial (
-        ProductMaterialID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_ProductMaterial PRIMARY KEY,
+        ProductMaterialID BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
         MaterialCode NVARCHAR(50) NOT NULL,
         MaterialName NVARCHAR(100) NOT NULL,
         IsActive BIT NOT NULL CONSTRAINT DF_ProductMaterial_IsActive DEFAULT (1),
@@ -260,127 +285,481 @@ BEGIN
         UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_ProductMaterial_UpdatedAt DEFAULT (SYSUTCDATETIME())
     );
 END;
-GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_ProductMaterial_Code' AND object_id = OBJECT_ID('dbo.ProductMaterial'))
+    EXEC('CREATE UNIQUE INDEX UQ_ProductMaterial_Code ON dbo.ProductMaterial(MaterialCode) WHERE IsActive = 1;');
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UQ_ProductMaterial_Code' AND object_id = OBJECT_ID(N'dbo.ProductMaterial'))
-    CREATE UNIQUE INDEX UQ_ProductMaterial_Code ON dbo.ProductMaterial(MaterialCode) WHERE IsActive = 1;
-GO
+IF OBJECT_ID('dbo.NumberSequence', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.NumberSequence (
+        SequenceKey NVARCHAR(50) NOT NULL CONSTRAINT PK_NumberSequence_SmartIMS PRIMARY KEY,
+        Prefix NVARCHAR(20) NOT NULL,
+        CurrentValue BIGINT NOT NULL CONSTRAINT DF_NumberSequence_CurrentValue_SmartIMS DEFAULT (0),
+        PaddingLength INT NOT NULL CONSTRAINT DF_NumberSequence_PaddingLength_SmartIMS DEFAULT (6),
+        UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_NumberSequence_UpdatedAt_SmartIMS DEFAULT (SYSUTCDATETIME())
+    );
+END;
 
+MERGE dbo.NumberSequence AS target
+USING (
+    VALUES
+      (N'SALES_QUOTE', N'QT', CAST(0 AS BIGINT), 6),
+      (N'SALES_ORDER', N'SO', CAST(0 AS BIGINT), 6)
+) AS source (SequenceKey, Prefix, CurrentValue, PaddingLength)
+ON target.SequenceKey = source.SequenceKey
+WHEN NOT MATCHED THEN
+  INSERT (SequenceKey, Prefix, CurrentValue, PaddingLength)
+  VALUES (source.SequenceKey, source.Prefix, source.CurrentValue, source.PaddingLength);
+
+IF OBJECT_ID('dbo.Customer', 'U') IS NOT NULL AND OBJECT_ID('dbo.SalesQuote', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.SalesQuote (
+        SalesQuoteID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_SalesQuote_SmartIMS PRIMARY KEY,
+        QuoteNo NVARCHAR(30) NOT NULL,
+        CustomerID BIGINT NOT NULL,
+        QuoteDate DATE NOT NULL,
+        ExpireDate DATE NOT NULL,
+        Status VARCHAR(20) NOT NULL CONSTRAINT DF_SalesQuote_Status_SmartIMS DEFAULT ('Quoting'),
+        SubTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesQuote_SubTotal_SmartIMS DEFAULT (0),
+        TaxAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesQuote_TaxAmount_SmartIMS DEFAULT (0),
+        TotalAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesQuote_TotalAmount_SmartIMS DEFAULT (0),
+        IsCustomerSuppliedMaterial BIT NOT NULL CONSTRAINT DF_SalesQuote_CustomerSuppliedMaterial_SmartIMS DEFAULT (0),
+        Remark NVARCHAR(500) NULL,
+        CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_SalesQuote_CreatedAt_SmartIMS DEFAULT (SYSUTCDATETIME()),
+        IsLocked BIT NOT NULL CONSTRAINT DF_SalesQuote_IsLocked_SmartIMS DEFAULT (0)
+    );
+END;
+
+IF OBJECT_ID('dbo.SalesQuote', 'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('dbo.SalesQuote', 'CustomerCode') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD CustomerCode NVARCHAR(50) NOT NULL CONSTRAINT DF_SalesQuote_CustomerCode DEFAULT (N'');
+    IF COL_LENGTH('dbo.SalesQuote', 'CustomerName') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD CustomerName NVARCHAR(200) NOT NULL CONSTRAINT DF_SalesQuote_CustomerName DEFAULT (N'');
+    IF COL_LENGTH('dbo.SalesQuote', 'CustomerTaxId') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD CustomerTaxId NVARCHAR(20) NULL;
+    IF COL_LENGTH('dbo.SalesQuote', 'CustomerContactName') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD CustomerContactName NVARCHAR(100) NULL;
+    IF COL_LENGTH('dbo.SalesQuote', 'CustomerPhone') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD CustomerPhone NVARCHAR(50) NULL;
+    IF COL_LENGTH('dbo.SalesQuote', 'CustomerAddress') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD CustomerAddress NVARCHAR(500) NULL;
+    IF COL_LENGTH('dbo.SalesQuote', 'TaxType') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD TaxType VARCHAR(20) NOT NULL CONSTRAINT DF_SalesQuote_TaxType DEFAULT ('Exclusive');
+    IF COL_LENGTH('dbo.SalesQuote', 'TaxRate') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD TaxRate DECIMAL(5,2) NOT NULL CONSTRAINT DF_SalesQuote_TaxRate DEFAULT (5);
+    IF COL_LENGTH('dbo.SalesQuote', 'IsCustomerSuppliedMaterial') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD IsCustomerSuppliedMaterial BIT NOT NULL CONSTRAINT DF_SalesQuote_CustomerSuppliedMaterial DEFAULT (0);
+    IF COL_LENGTH('dbo.SalesQuote', 'UpdatedAt') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_SalesQuote_UpdatedAt DEFAULT (SYSUTCDATETIME());
+    IF COL_LENGTH('dbo.SalesQuote', 'VoidReason') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD VoidReason NVARCHAR(500) NULL;
+    IF COL_LENGTH('dbo.SalesQuote', 'VoidedAt') IS NULL
+        ALTER TABLE dbo.SalesQuote ADD VoidedAt DATETIME2(0) NULL;
+
+    IF OBJECT_ID('dbo.Customer', 'U') IS NOT NULL
+    BEGIN
+        EXEC(N'
+            UPDATE q
+            SET CustomerCode = c.CustomerCode,
+                CustomerName = c.CustomerName,
+                CustomerTaxId = c.TaxId,
+                CustomerContactName = c.ContactName,
+                CustomerPhone = c.Phone,
+                CustomerAddress = c.Address
+            FROM dbo.SalesQuote q
+            INNER JOIN dbo.Customer c ON c.CustomerID = q.CustomerID
+            WHERE q.CustomerCode = N'''' OR q.CustomerName = N'''';
+        ');
+
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_SalesQuote_Customer_Runtime')
+            ALTER TABLE dbo.SalesQuote ADD CONSTRAINT FK_SalesQuote_Customer_Runtime FOREIGN KEY (CustomerID) REFERENCES dbo.Customer(CustomerID);
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_SalesQuote_QuoteNo' AND object_id = OBJECT_ID('dbo.SalesQuote'))
+        CREATE UNIQUE INDEX UQ_SalesQuote_QuoteNo ON dbo.SalesQuote(QuoteNo);
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_SalesQuote_Date_Status' AND object_id = OBJECT_ID('dbo.SalesQuote'))
+        CREATE INDEX IX_SalesQuote_Date_Status ON dbo.SalesQuote(QuoteDate DESC, Status);
+END;
+
+IF OBJECT_ID('dbo.SalesQuote', 'U') IS NOT NULL AND OBJECT_ID('dbo.SalesQuoteItem', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.SalesQuoteItem (
+        SalesQuoteItemID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_SalesQuoteItem_SmartIMS PRIMARY KEY,
+        SalesQuoteID BIGINT NOT NULL,
+        LineNumber INT NOT NULL,
+        ProductID BIGINT NULL,
+        Qty DECIMAL(18,4) NOT NULL,
+        UnitPrice DECIMAL(18,4) NOT NULL,
+        TaxRate DECIMAL(5,2) NOT NULL CONSTRAINT DF_SalesQuoteItem_TaxRate_SmartIMS DEFAULT (0),
+        LineAmount AS (Qty * UnitPrice)
+    );
+END;
+
+IF OBJECT_ID('dbo.SalesQuoteItem', 'U') IS NOT NULL
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM sys.columns
+        WHERE object_id = OBJECT_ID('dbo.SalesQuoteItem')
+          AND name = 'ProductID'
+          AND is_nullable = 0
+    )
+        ALTER TABLE dbo.SalesQuoteItem ALTER COLUMN ProductID BIGINT NULL;
+    IF COL_LENGTH('dbo.SalesQuoteItem', 'ItemSource') IS NULL
+        ALTER TABLE dbo.SalesQuoteItem ADD ItemSource VARCHAR(20) NOT NULL CONSTRAINT DF_SalesQuoteItem_ItemSource DEFAULT ('Product');
+    IF COL_LENGTH('dbo.SalesQuoteItem', 'ProductCode') IS NULL
+        ALTER TABLE dbo.SalesQuoteItem ADD ProductCode NVARCHAR(50) NULL;
+    IF COL_LENGTH('dbo.SalesQuoteItem', 'ProductName') IS NULL
+        ALTER TABLE dbo.SalesQuoteItem ADD ProductName NVARCHAR(200) NOT NULL CONSTRAINT DF_SalesQuoteItem_ProductName DEFAULT (N'');
+    IF COL_LENGTH('dbo.SalesQuoteItem', 'Specification') IS NULL
+        ALTER TABLE dbo.SalesQuoteItem ADD Specification NVARCHAR(500) NULL;
+    IF COL_LENGTH('dbo.SalesQuoteItem', 'Unit') IS NULL
+        ALTER TABLE dbo.SalesQuoteItem ADD Unit NVARCHAR(20) NULL;
+    IF COL_LENGTH('dbo.SalesQuoteItem', 'Remark') IS NULL
+        ALTER TABLE dbo.SalesQuoteItem ADD Remark NVARCHAR(500) NULL;
+
+    IF OBJECT_ID('dbo.Product', 'U') IS NOT NULL
+    BEGIN
+        EXEC(N'
+            UPDATE qi
+            SET ProductCode = p.ProductCode,
+                ProductName = p.ProductName,
+                Specification = p.Specification,
+                Unit = p.Unit,
+                ItemSource = ''Product''
+            FROM dbo.SalesQuoteItem qi
+            INNER JOIN dbo.Product p ON p.ProductID = qi.ProductID
+            WHERE qi.ProductName = N'''';
+        ');
+
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_SalesQuoteItem_Product_Runtime')
+            ALTER TABLE dbo.SalesQuoteItem ADD CONSTRAINT FK_SalesQuoteItem_Product_Runtime FOREIGN KEY (ProductID) REFERENCES dbo.Product(ProductID);
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_SalesQuoteItem_Head_Runtime')
+        ALTER TABLE dbo.SalesQuoteItem ADD CONSTRAINT FK_SalesQuoteItem_Head_Runtime FOREIGN KEY (SalesQuoteID) REFERENCES dbo.SalesQuote(SalesQuoteID) ON DELETE CASCADE;
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_SalesQuoteItem_Line' AND object_id = OBJECT_ID('dbo.SalesQuoteItem'))
+        CREATE UNIQUE INDEX UQ_SalesQuoteItem_Line ON dbo.SalesQuoteItem(SalesQuoteID, LineNumber);
+END;
+
+IF OBJECT_ID('dbo.Customer', 'U') IS NOT NULL AND OBJECT_ID('dbo.SalesOrder', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.SalesOrder (
+        SalesOrderID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_SalesOrder_SmartIMS PRIMARY KEY,
+        SONo NVARCHAR(30) NOT NULL,
+        CustomerID BIGINT NOT NULL,
+        SourceQuoteID BIGINT NULL,
+        OrderDate DATE NOT NULL,
+        RequiredDate DATE NULL,
+        PaymentTermDays INT NOT NULL CONSTRAINT DF_SalesOrder_PaymentTermDays_SmartIMS DEFAULT (30),
+        Status VARCHAR(20) NOT NULL CONSTRAINT DF_SalesOrder_Status_SmartIMS DEFAULT ('Confirmed'),
+        SubTotal DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesOrder_SubTotal_SmartIMS DEFAULT (0),
+        TaxAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesOrder_TaxAmount_SmartIMS DEFAULT (0),
+        TotalAmount DECIMAL(18,2) NOT NULL CONSTRAINT DF_SalesOrder_TotalAmount_SmartIMS DEFAULT (0),
+        IsCustomerSuppliedMaterial BIT NOT NULL CONSTRAINT DF_SalesOrder_CustomerSuppliedMaterial_SmartIMS DEFAULT (0),
+        Remark NVARCHAR(500) NULL,
+        CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_SalesOrder_CreatedAt_SmartIMS DEFAULT (SYSUTCDATETIME())
+    );
+END;
+
+IF OBJECT_ID('dbo.SalesOrder', 'U') IS NOT NULL
+BEGIN
+    IF COL_LENGTH('dbo.SalesOrder', 'TaxType') IS NULL
+        ALTER TABLE dbo.SalesOrder ADD TaxType VARCHAR(20) NOT NULL CONSTRAINT DF_SalesOrder_TaxType DEFAULT ('Exclusive');
+    IF COL_LENGTH('dbo.SalesOrder', 'TaxRate') IS NULL
+        ALTER TABLE dbo.SalesOrder ADD TaxRate DECIMAL(5,2) NOT NULL CONSTRAINT DF_SalesOrder_TaxRate DEFAULT (5);
+    IF COL_LENGTH('dbo.SalesOrder', 'IsCustomerSuppliedMaterial') IS NULL
+        ALTER TABLE dbo.SalesOrder ADD IsCustomerSuppliedMaterial BIT NOT NULL CONSTRAINT DF_SalesOrder_CustomerSuppliedMaterial DEFAULT (0);
+    IF COL_LENGTH('dbo.SalesOrder', 'CustomerCode') IS NULL
+        ALTER TABLE dbo.SalesOrder ADD CustomerCode NVARCHAR(50) NOT NULL CONSTRAINT DF_SalesOrder_CustomerCode DEFAULT (N'');
+    IF COL_LENGTH('dbo.SalesOrder', 'CustomerName') IS NULL
+        ALTER TABLE dbo.SalesOrder ADD CustomerName NVARCHAR(200) NOT NULL CONSTRAINT DF_SalesOrder_CustomerName DEFAULT (N'');
+    IF COL_LENGTH('dbo.SalesOrder', 'CustomerTaxId') IS NULL
+        ALTER TABLE dbo.SalesOrder ADD CustomerTaxId NVARCHAR(20) NULL;
+    IF COL_LENGTH('dbo.SalesOrder', 'CustomerContactName') IS NULL
+        ALTER TABLE dbo.SalesOrder ADD CustomerContactName NVARCHAR(100) NULL;
+    IF COL_LENGTH('dbo.SalesOrder', 'CustomerPhone') IS NULL
+        ALTER TABLE dbo.SalesOrder ADD CustomerPhone NVARCHAR(50) NULL;
+    IF COL_LENGTH('dbo.SalesOrder', 'CustomerAddress') IS NULL
+        ALTER TABLE dbo.SalesOrder ADD CustomerAddress NVARCHAR(500) NULL;
+
+    IF OBJECT_ID('dbo.Customer', 'U') IS NOT NULL
+    BEGIN
+        EXEC(N'
+            UPDATE so
+            SET CustomerCode = c.CustomerCode,
+                CustomerName = c.CustomerName,
+                CustomerTaxId = c.TaxId,
+                CustomerContactName = c.ContactName,
+                CustomerPhone = c.Phone,
+                CustomerAddress = c.Address
+            FROM dbo.SalesOrder so
+            INNER JOIN dbo.Customer c ON c.CustomerID = so.CustomerID
+            WHERE so.CustomerCode = N'''' OR so.CustomerName = N'''';
+        ');
+    END;
+END;
+
+IF OBJECT_ID('dbo.SalesOrder', 'U') IS NOT NULL AND OBJECT_ID('dbo.SalesOrderItem', 'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.SalesOrderItem (
+        SalesOrderItemID BIGINT IDENTITY(1,1) NOT NULL CONSTRAINT PK_SalesOrderItem_SmartIMS PRIMARY KEY,
+        SalesOrderID BIGINT NOT NULL,
+        LineNumber INT NOT NULL,
+        ProductID BIGINT NULL,
+        OrderedQty DECIMAL(18,4) NOT NULL,
+        ShippedQty DECIMAL(18,4) NOT NULL CONSTRAINT DF_SalesOrderItem_ShippedQty_SmartIMS DEFAULT (0),
+        UnitPrice DECIMAL(18,4) NOT NULL,
+        TaxRate DECIMAL(5,2) NOT NULL CONSTRAINT DF_SalesOrderItem_TaxRate_SmartIMS DEFAULT (0),
+        LineAmount AS (OrderedQty * UnitPrice)
+    );
+END;
+
+IF OBJECT_ID('dbo.SalesOrderItem', 'U') IS NOT NULL
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM sys.columns
+        WHERE object_id = OBJECT_ID('dbo.SalesOrderItem')
+          AND name = 'ProductID'
+          AND is_nullable = 0
+    )
+        ALTER TABLE dbo.SalesOrderItem ALTER COLUMN ProductID BIGINT NULL;
+    IF COL_LENGTH('dbo.SalesOrderItem', 'ItemSource') IS NULL
+        ALTER TABLE dbo.SalesOrderItem ADD ItemSource VARCHAR(20) NOT NULL CONSTRAINT DF_SalesOrderItem_ItemSource DEFAULT ('Product');
+    IF COL_LENGTH('dbo.SalesOrderItem', 'ProductCode') IS NULL
+        ALTER TABLE dbo.SalesOrderItem ADD ProductCode NVARCHAR(50) NULL;
+    IF COL_LENGTH('dbo.SalesOrderItem', 'ProductName') IS NULL
+        ALTER TABLE dbo.SalesOrderItem ADD ProductName NVARCHAR(200) NOT NULL CONSTRAINT DF_SalesOrderItem_ProductName DEFAULT (N'');
+    IF COL_LENGTH('dbo.SalesOrderItem', 'Specification') IS NULL
+        ALTER TABLE dbo.SalesOrderItem ADD Specification NVARCHAR(500) NULL;
+    IF COL_LENGTH('dbo.SalesOrderItem', 'Unit') IS NULL
+        ALTER TABLE dbo.SalesOrderItem ADD Unit NVARCHAR(20) NULL;
+    IF COL_LENGTH('dbo.SalesOrderItem', 'Remark') IS NULL
+        ALTER TABLE dbo.SalesOrderItem ADD Remark NVARCHAR(500) NULL;
+
+    IF OBJECT_ID('dbo.Product', 'U') IS NOT NULL
+    BEGIN
+        EXEC(N'
+            UPDATE oi
+            SET ProductCode = p.ProductCode,
+                ProductName = p.ProductName,
+                Specification = p.Specification,
+                Unit = p.Unit,
+                ItemSource = ''Product''
+            FROM dbo.SalesOrderItem oi
+            INNER JOIN dbo.Product p ON p.ProductID = oi.ProductID
+            WHERE oi.ProductName = N'''';
+        ');
+    END;
+END;
+
+IF OBJECT_ID('dbo.SalesOrder', 'U') IS NOT NULL
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM sys.check_constraints
+        WHERE parent_object_id = OBJECT_ID('dbo.SalesQuote')
+          AND name = 'CK_SalesQuote_Status_Runtime'
+    )
+        ALTER TABLE dbo.SalesQuote DROP CONSTRAINT CK_SalesQuote_Status_Runtime;
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.check_constraints
+        WHERE parent_object_id = OBJECT_ID('dbo.SalesQuote')
+          AND name = 'CK_SalesQuote_Status_SmartIMS'
+    )
+        ALTER TABLE dbo.SalesQuote WITH NOCHECK
+        ADD CONSTRAINT CK_SalesQuote_Status_SmartIMS
+        CHECK (Status IN ('Quoting', 'Converted', 'Voided'));
+
+    UPDATE q
+    SET Status = 'Converted',
+        IsLocked = 1
+    FROM dbo.SalesQuote q
+    WHERE EXISTS (
+        SELECT 1 FROM dbo.SalesOrder so
+        WHERE so.SourceQuoteID = q.SalesQuoteID
+    );
+END;
+
+IF OBJECT_ID('dbo.SalesQuote', 'U') IS NOT NULL
+BEGIN
+    UPDATE dbo.SalesQuote
+    SET Status = 'Quoting'
+    WHERE Status NOT IN ('Quoting', 'Converted', 'Voided');
+
+    ALTER TABLE dbo.SalesQuote WITH CHECK CHECK CONSTRAINT CK_SalesQuote_Status_SmartIMS;
+END;
+GO
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+IF COL_LENGTH('dbo.Product', 'ProductMaterialID') IS NULL
+    ALTER TABLE dbo.Product ADD ProductMaterialID BIGINT NULL;
+IF COL_LENGTH('dbo.Product', 'Thickness') IS NULL
+    ALTER TABLE dbo.Product ADD Thickness NVARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Product', 'Length') IS NULL
+    ALTER TABLE dbo.Product ADD Length NVARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Product', 'Width') IS NULL
+    ALTER TABLE dbo.Product ADD Width NVARCHAR(50) NULL;
+IF COL_LENGTH('dbo.Product', 'Note') IS NULL
+    ALTER TABLE dbo.Product ADD Note NVARCHAR(2000) NULL;
+IF COL_LENGTH('dbo.Product', 'CreatedAt') IS NULL
+    ALTER TABLE dbo.Product ADD CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Product_CreatedAt DEFAULT (SYSUTCDATETIME());
+IF COL_LENGTH('dbo.Product', 'UpdatedAt') IS NULL
+    ALTER TABLE dbo.Product ADD UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Product_UpdatedAt DEFAULT (SYSUTCDATETIME());
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Product_ProductMaterial')
+    ALTER TABLE dbo.Product WITH CHECK ADD CONSTRAINT FK_Product_ProductMaterial
+        FOREIGN KEY (ProductMaterialID) REFERENCES dbo.ProductMaterial(ProductMaterialID);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_Product_Code_Active' AND object_id = OBJECT_ID('dbo.Product'))
+    EXEC('CREATE UNIQUE INDEX UQ_Product_Code_Active ON dbo.Product(ProductCode) WHERE IsActive = 1;');
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Product_ProductMaterial' AND object_id = OBJECT_ID('dbo.Product'))
+    EXEC('CREATE INDEX IX_Product_ProductMaterial ON dbo.Product(ProductMaterialID, IsActive);');
+GO
+-- Customer codes: C00001 through C99999. Run after the core schema exists.
+SET XACT_ABORT ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+BEGIN TRANSACTION;
+IF NOT EXISTS (SELECT 1 FROM dbo.NumberSequence WITH (UPDLOCK, HOLDLOCK) WHERE SequenceKey = N'CUSTOMER')
+    INSERT INTO dbo.NumberSequence (SequenceKey, Prefix, CurrentValue, PaddingLength)
+    VALUES (N'CUSTOMER', N'C', 0, 5);
+DECLARE @Current BIGINT, @MaxCode BIGINT, @InvalidCount BIGINT, @CustomerCount BIGINT;
+SELECT @Current = CurrentValue FROM dbo.NumberSequence WITH (UPDLOCK, HOLDLOCK) WHERE SequenceKey = N'CUSTOMER';
+SELECT @CustomerCount = COUNT_BIG(*) FROM dbo.Customer WITH (TABLOCKX, HOLDLOCK);
+SELECT @MaxCode = ISNULL(MAX(TRY_CONVERT(BIGINT, SUBSTRING(CustomerCode, 2, 5))), 0)
+FROM dbo.Customer
+WHERE DATALENGTH(CustomerCode) = 12
+  AND CustomerCode COLLATE Latin1_General_100_BIN2 LIKE N'C[0-9][0-9][0-9][0-9][0-9]'
+  AND TRY_CONVERT(BIGINT, SUBSTRING(CustomerCode, 2, 5)) BETWEEN 1 AND 99999;
+SET @Current = CASE WHEN @Current > @MaxCode THEN @Current ELSE @MaxCode END;
+DECLARE @Renumbered TABLE (CustomerID BIGINT PRIMARY KEY, OldCode NVARCHAR(50), NewCode NVARCHAR(50));
+INSERT INTO @Renumbered (CustomerID, OldCode, NewCode)
+SELECT CustomerID, CustomerCode,
+       N'C' + RIGHT(N'00000' + CONVERT(NVARCHAR(20), @Current + ROW_NUMBER() OVER (ORDER BY CustomerID)), 5)
+FROM dbo.Customer
+WHERE NOT (DATALENGTH(CustomerCode) = 12
+  AND CustomerCode COLLATE Latin1_General_100_BIN2 LIKE N'C[0-9][0-9][0-9][0-9][0-9]'
+  AND TRY_CONVERT(BIGINT, SUBSTRING(CustomerCode, 2, 5)) BETWEEN 1 AND 99999);
+SET @InvalidCount = @@ROWCOUNT;
+IF @Current + @InvalidCount > 99999
+    THROW 50001, N'客戶編號已超過 C99999，無法使用五碼流水號。', 1;
+UPDATE c SET CustomerCode = r.NewCode FROM dbo.Customer c INNER JOIN @Renumbered r ON r.CustomerID = c.CustomerID;
+UPDATE q SET CustomerCode = r.NewCode FROM dbo.SalesQuote q INNER JOIN @Renumbered r ON r.CustomerID = q.CustomerID;
+UPDATE s SET CustomerCode = r.NewCode FROM dbo.SalesOrder s INNER JOIN @Renumbered r ON r.CustomerID = s.CustomerID;
+UPDATE dbo.NumberSequence
+SET Prefix = N'C', PaddingLength = 5, CurrentValue = @Current + @InvalidCount, UpdatedAt = SYSUTCDATETIME()
+WHERE SequenceKey = N'CUSTOMER'
+  AND (Prefix <> N'C' OR PaddingLength <> 5 OR CurrentValue <> @Current + @InvalidCount);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Customer') AND name = N'UQ_Customer_Code')
+    CREATE UNIQUE INDEX UQ_Customer_Code ON dbo.Customer(CustomerCode);
+COMMIT TRANSACTION;
+GO
 MERGE dbo.AppPermission AS target
 USING (
     VALUES
-        (N'PAGE_DASHBOARD', N'儀表板', N'PAGE', N'NAVIGATE', N'允許進入系統首頁與儀表板。'),
-        (N'PAGE_COMPONENT_TEST', N'元件測試頁', N'PAGE', N'NAVIGATE', N'允許進入元件測試頁。'),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST', N'客戶資料管理測試', N'PAGE', N'NAVIGATE', N'允許進入客戶資料管理 Layout 測試頁。'),
-        (N'PAGE_ADMIN_USERS', N'使用者管理', N'PAGE', N'NAVIGATE', N'允許進入使用者管理頁。'),
-        (N'PAGE_ADMIN_PERMISSIONS', N'權限設定', N'PAGE', N'NAVIGATE', N'允許進入使用者權限設定頁。'),
-        (N'PAGE_ADMIN_BRANDING', N'品牌設定', N'PAGE', N'NAVIGATE', N'允許進入公司名稱、Logo 與登入頁設定。'),
-        (N'PAGE_DASHBOARD_FIND', N'儀表板-尋找', N'PAGE_DASHBOARD', N'FIND', N'允許在儀表板使用尋找功能。'),
-        (N'PAGE_DASHBOARD_PRINT', N'儀表板-列印', N'PAGE_DASHBOARD', N'PRINT', N'允許列印儀表板。'),
-        (N'PAGE_DASHBOARD_FIRST', N'儀表板-第一筆', N'PAGE_DASHBOARD', N'FIRST', N'允許在儀表板移至第一筆。'),
-        (N'PAGE_DASHBOARD_PREVIOUS', N'儀表板-上一筆', N'PAGE_DASHBOARD', N'PREVIOUS', N'允許在儀表板移至上一筆。'),
-        (N'PAGE_DASHBOARD_NEXT', N'儀表板-下一筆', N'PAGE_DASHBOARD', N'NEXT', N'允許在儀表板移至下一筆。'),
-        (N'PAGE_DASHBOARD_LAST', N'儀表板-最後一筆', N'PAGE_DASHBOARD', N'LAST', N'允許在儀表板移至最後一筆。'),
-        (N'PAGE_COMPONENT_TEST_FIND', N'元件測試-尋找', N'PAGE_COMPONENT_TEST', N'FIND', N'允許在元件測試頁使用尋找功能。'),
-        (N'PAGE_COMPONENT_TEST_PRINT', N'元件測試-列印', N'PAGE_COMPONENT_TEST', N'PRINT', N'允許列印元件測試頁。'),
-        (N'PAGE_COMPONENT_TEST_CREATE', N'元件測試-新增', N'PAGE_COMPONENT_TEST', N'CREATE', N'允許在元件測試頁新增測試資料。'),
-        (N'PAGE_COMPONENT_TEST_DELETE', N'元件測試-刪除', N'PAGE_COMPONENT_TEST', N'DELETE', N'允許在元件測試頁刪除測試資料。'),
-        (N'PAGE_COMPONENT_TEST_COPY', N'元件測試-複製', N'PAGE_COMPONENT_TEST', N'COPY', N'允許在元件測試頁複製測試資料。'),
-        (N'PAGE_COMPONENT_TEST_EDIT', N'元件測試-修改', N'PAGE_COMPONENT_TEST', N'EDIT', N'允許在元件測試頁修改測試資料。'),
-        (N'PAGE_COMPONENT_TEST_CANCEL', N'元件測試-取消', N'PAGE_COMPONENT_TEST', N'CANCEL', N'允許在元件測試頁取消目前編輯。'),
-        (N'PAGE_COMPONENT_TEST_FIRST', N'元件測試-第一筆', N'PAGE_COMPONENT_TEST', N'FIRST', N'允許在元件測試頁移至第一筆。'),
-        (N'PAGE_COMPONENT_TEST_PREVIOUS', N'元件測試-上一筆', N'PAGE_COMPONENT_TEST', N'PREVIOUS', N'允許在元件測試頁移至上一筆。'),
-        (N'PAGE_COMPONENT_TEST_NEXT', N'元件測試-下一筆', N'PAGE_COMPONENT_TEST', N'NEXT', N'允許在元件測試頁移至下一筆。'),
-        (N'PAGE_COMPONENT_TEST_LAST', N'元件測試-最後一筆', N'PAGE_COMPONENT_TEST', N'LAST', N'允許在元件測試頁移至最後一筆。'),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST_CREATE', N'客戶資料管理-新增', N'PAGE_CUSTOMER_LAYOUT_TEST', N'CREATE', N'允許在客戶資料管理測試頁新增資料。'),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST_DELETE', N'客戶資料管理-刪除', N'PAGE_CUSTOMER_LAYOUT_TEST', N'DELETE', N'允許在客戶資料管理測試頁刪除資料。'),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST_EDIT', N'客戶資料管理-修改', N'PAGE_CUSTOMER_LAYOUT_TEST', N'EDIT', N'允許在客戶資料管理測試頁修改資料。'),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST_FIND', N'客戶資料管理-尋找', N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIND', N'允許在客戶資料管理測試頁尋找資料。'),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST_PRINT', N'客戶資料管理-列印', N'PAGE_CUSTOMER_LAYOUT_TEST', N'PRINT', N'允許列印客戶資料管理測試頁。'),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST_FIRST', N'客戶資料管理-第一筆', N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIRST', N'允許在客戶資料管理測試頁移至第一筆。'),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST_PREVIOUS', N'客戶資料管理-上一筆', N'PAGE_CUSTOMER_LAYOUT_TEST', N'PREVIOUS', N'允許在客戶資料管理測試頁移至上一筆。'),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST_NEXT', N'客戶資料管理-下一筆', N'PAGE_CUSTOMER_LAYOUT_TEST', N'NEXT', N'允許在客戶資料管理測試頁移至下一筆。'),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST_LAST', N'客戶資料管理-最後一筆', N'PAGE_CUSTOMER_LAYOUT_TEST', N'LAST', N'允許在客戶資料管理測試頁移至最後一筆。'),
-        (N'PAGE_ADMIN_USERS_CREATE', N'使用者管理-新增', N'PAGE_ADMIN_USERS', N'CREATE', N'允許在使用者管理新增資料。'),
-        (N'PAGE_ADMIN_USERS_DELETE', N'使用者管理-刪除', N'PAGE_ADMIN_USERS', N'DELETE', N'允許在使用者管理刪除資料。'),
-        (N'PAGE_ADMIN_USERS_EDIT', N'使用者管理-修改', N'PAGE_ADMIN_USERS', N'EDIT', N'允許在使用者管理修改資料。'),
-        (N'PAGE_ADMIN_USERS_FIND', N'使用者管理-尋找', N'PAGE_ADMIN_USERS', N'FIND', N'允許在使用者管理使用尋找功能。'),
-        (N'PAGE_ADMIN_USERS_PRINT', N'使用者管理-列印', N'PAGE_ADMIN_USERS', N'PRINT', N'允許列印使用者管理。'),
-        (N'PAGE_ADMIN_USERS_FIRST', N'使用者管理-第一筆', N'PAGE_ADMIN_USERS', N'FIRST', N'允許在使用者管理移至第一筆。'),
-        (N'PAGE_ADMIN_USERS_PREVIOUS', N'使用者管理-上一筆', N'PAGE_ADMIN_USERS', N'PREVIOUS', N'允許在使用者管理移至上一筆。'),
-        (N'PAGE_ADMIN_USERS_NEXT', N'使用者管理-下一筆', N'PAGE_ADMIN_USERS', N'NEXT', N'允許在使用者管理移至下一筆。'),
-        (N'PAGE_ADMIN_USERS_LAST', N'使用者管理-最後一筆', N'PAGE_ADMIN_USERS', N'LAST', N'允許在使用者管理移至最後一筆。'),
-        (N'PAGE_ADMIN_PERMISSIONS_EDIT', N'權限設定-修改', N'PAGE_ADMIN_PERMISSIONS', N'EDIT', N'允許在權限設定修改資料。'),
-        (N'PAGE_ADMIN_PERMISSIONS_FIND', N'權限設定-尋找', N'PAGE_ADMIN_PERMISSIONS', N'FIND', N'允許在權限設定使用尋找功能。'),
-        (N'PAGE_ADMIN_PERMISSIONS_PRINT', N'權限設定-列印', N'PAGE_ADMIN_PERMISSIONS', N'PRINT', N'允許列印權限設定。'),
-        (N'PAGE_ADMIN_PERMISSIONS_FIRST', N'權限設定-第一筆', N'PAGE_ADMIN_PERMISSIONS', N'FIRST', N'允許在權限設定移至第一筆。'),
-        (N'PAGE_ADMIN_PERMISSIONS_PREVIOUS', N'權限設定-上一筆', N'PAGE_ADMIN_PERMISSIONS', N'PREVIOUS', N'允許在權限設定移至上一筆。'),
-        (N'PAGE_ADMIN_PERMISSIONS_NEXT', N'權限設定-下一筆', N'PAGE_ADMIN_PERMISSIONS', N'NEXT', N'允許在權限設定移至下一筆。'),
-        (N'PAGE_ADMIN_PERMISSIONS_LAST', N'權限設定-最後一筆', N'PAGE_ADMIN_PERMISSIONS', N'LAST', N'允許在權限設定移至最後一筆。'),
-        (N'PAGE_ADMIN_BRANDING_EDIT', N'品牌設定-修改', N'PAGE_ADMIN_BRANDING', N'EDIT', N'允許在品牌設定修改資料。'),
-        (N'PAGE_ADMIN_BRANDING_FIND', N'品牌設定-尋找', N'PAGE_ADMIN_BRANDING', N'FIND', N'允許在品牌設定使用尋找功能。'),
-        (N'PAGE_ADMIN_BRANDING_PRINT', N'品牌設定-列印', N'PAGE_ADMIN_BRANDING', N'PRINT', N'允許列印品牌設定。'),
-        (N'ADMIN_USERS_MANAGE', N'管理使用者', N'ADMIN', N'MANAGE', N'允許新增、編輯、啟用或停用使用者。'),
-        (N'ADMIN_PERMISSIONS_MANAGE', N'管理使用者權限', N'ADMIN', N'MANAGE', N'允許調整使用者的系統權限。'),
-        (N'ADMIN_BRANDING_MANAGE', N'管理品牌設定', N'ADMIN', N'MANAGE', N'允許修改公司名稱、Logo 與登入頁內容。')
+      (N'PAGE_DASHBOARD', N'儀表板', N'PAGE', N'NAVIGATE', N'可進入系統首頁與基礎資料預留頁'),
+      (N'PAGE_COMPONENT_TEST', N'元件測試頁面', N'PAGE', N'NAVIGATE', N'可進入元件測試頁面'),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST', N'客戶資料管理測試', N'PAGE', N'NAVIGATE', N'可進入客戶資料管理 Layout 測試頁'),
+      (N'PAGE_SALES_QUOTATION', N'報價單', N'PAGE', N'NAVIGATE', N'可進入報價單管理'),
+      (N'PAGE_ADMIN_USERS', N'使用者管理', N'PAGE', N'NAVIGATE', N'可進入使用者管理'),
+      (N'PAGE_ADMIN_PERMISSIONS', N'權限設定', N'PAGE', N'NAVIGATE', N'可進入使用者權限設定'),
+      (N'PAGE_ADMIN_BRANDING', N'公司形象', N'PAGE', N'NAVIGATE', N'可進入公司 Logo 與登入圖設定'),
+      (N'PAGE_DASHBOARD_FIND', N'儀表板-尋找', N'PAGE_DASHBOARD', N'FIND', N'可在儀表板使用尋找功能'),
+      (N'PAGE_DASHBOARD_PRINT', N'儀表板-列印', N'PAGE_DASHBOARD', N'PRINT', N'可列印儀表板'),
+      (N'PAGE_DASHBOARD_FIRST', N'儀表板-第一筆', N'PAGE_DASHBOARD', N'FIRST', N'可在儀表板移至第一筆'),
+      (N'PAGE_DASHBOARD_PREVIOUS', N'儀表板-上一筆', N'PAGE_DASHBOARD', N'PREVIOUS', N'可在儀表板移至上一筆'),
+      (N'PAGE_DASHBOARD_NEXT', N'儀表板-下一筆', N'PAGE_DASHBOARD', N'NEXT', N'可在儀表板移至下一筆'),
+      (N'PAGE_DASHBOARD_LAST', N'儀表板-最後一筆', N'PAGE_DASHBOARD', N'LAST', N'可在儀表板移至最後一筆'),
+      (N'PAGE_COMPONENT_TEST_FIND', N'元件測試-尋找', N'PAGE_COMPONENT_TEST', N'FIND', N'可在元件測試頁面使用尋找功能'),
+      (N'PAGE_COMPONENT_TEST_PRINT', N'元件測試-列印', N'PAGE_COMPONENT_TEST', N'PRINT', N'可列印元件測試頁面'),
+      (N'PAGE_COMPONENT_TEST_CREATE', N'元件測試-新增', N'PAGE_COMPONENT_TEST', N'CREATE', N'可在元件測試頁面新增測試資料'),
+      (N'PAGE_COMPONENT_TEST_DELETE', N'元件測試-刪除', N'PAGE_COMPONENT_TEST', N'DELETE', N'可在元件測試頁面刪除測試資料'),
+      (N'PAGE_COMPONENT_TEST_COPY', N'元件測試-複製', N'PAGE_COMPONENT_TEST', N'COPY', N'可在元件測試頁面複製測試資料'),
+      (N'PAGE_COMPONENT_TEST_EDIT', N'元件測試-修改', N'PAGE_COMPONENT_TEST', N'EDIT', N'可在元件測試頁面修改測試資料'),
+      (N'PAGE_COMPONENT_TEST_CANCEL', N'元件測試-取消', N'PAGE_COMPONENT_TEST', N'CANCEL', N'可在元件測試頁面取消目前編輯'),
+      (N'PAGE_COMPONENT_TEST_FIRST', N'元件測試-第一筆', N'PAGE_COMPONENT_TEST', N'FIRST', N'可在元件測試頁面移至第一筆'),
+      (N'PAGE_COMPONENT_TEST_PREVIOUS', N'元件測試-上一筆', N'PAGE_COMPONENT_TEST', N'PREVIOUS', N'可在元件測試頁面移至上一筆'),
+      (N'PAGE_COMPONENT_TEST_NEXT', N'元件測試-下一筆', N'PAGE_COMPONENT_TEST', N'NEXT', N'可在元件測試頁面移至下一筆'),
+      (N'PAGE_COMPONENT_TEST_LAST', N'元件測試-最後一筆', N'PAGE_COMPONENT_TEST', N'LAST', N'可在元件測試頁面移至最後一筆'),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST_CREATE', N'客戶資料管理-新增', N'PAGE_CUSTOMER_LAYOUT_TEST', N'CREATE', N'可在客戶資料管理測試頁新增資料'),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST_DELETE', N'客戶資料管理-刪除', N'PAGE_CUSTOMER_LAYOUT_TEST', N'DELETE', N'可在客戶資料管理測試頁刪除資料'),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST_EDIT', N'客戶資料管理-修改', N'PAGE_CUSTOMER_LAYOUT_TEST', N'EDIT', N'可在客戶資料管理測試頁修改資料'),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST_FIND', N'客戶資料管理-尋找', N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIND', N'可在客戶資料管理測試頁尋找資料'),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST_PRINT', N'客戶資料管理-列印', N'PAGE_CUSTOMER_LAYOUT_TEST', N'PRINT', N'可列印客戶資料管理測試頁'),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST_FIRST', N'客戶資料管理-第一筆', N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIRST', N'可在客戶資料管理測試頁移至第一筆'),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST_PREVIOUS', N'客戶資料管理-上一筆', N'PAGE_CUSTOMER_LAYOUT_TEST', N'PREVIOUS', N'可在客戶資料管理測試頁移至上一筆'),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST_NEXT', N'客戶資料管理-下一筆', N'PAGE_CUSTOMER_LAYOUT_TEST', N'NEXT', N'可在客戶資料管理測試頁移至下一筆'),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST_LAST', N'客戶資料管理-最後一筆', N'PAGE_CUSTOMER_LAYOUT_TEST', N'LAST', N'可在客戶資料管理測試頁移至最後一筆'),
+      (N'PAGE_ADMIN_USERS_CREATE', N'使用者管理-新增', N'PAGE_ADMIN_USERS', N'CREATE', N'可在使用者管理新增資料'),
+      (N'PAGE_ADMIN_USERS_DELETE', N'使用者管理-刪除', N'PAGE_ADMIN_USERS', N'DELETE', N'可在使用者管理刪除資料'),
+      (N'PAGE_ADMIN_USERS_EDIT', N'使用者管理-修改', N'PAGE_ADMIN_USERS', N'EDIT', N'可在使用者管理修改資料'),
+      (N'PAGE_ADMIN_USERS_FIND', N'使用者管理-尋找', N'PAGE_ADMIN_USERS', N'FIND', N'可在使用者管理使用尋找功能'),
+      (N'PAGE_ADMIN_USERS_PRINT', N'使用者管理-列印', N'PAGE_ADMIN_USERS', N'PRINT', N'可列印使用者管理'),
+      (N'PAGE_ADMIN_USERS_FIRST', N'使用者管理-第一筆', N'PAGE_ADMIN_USERS', N'FIRST', N'可在使用者管理移至第一筆'),
+      (N'PAGE_ADMIN_USERS_PREVIOUS', N'使用者管理-上一筆', N'PAGE_ADMIN_USERS', N'PREVIOUS', N'可在使用者管理移至上一筆'),
+      (N'PAGE_ADMIN_USERS_NEXT', N'使用者管理-下一筆', N'PAGE_ADMIN_USERS', N'NEXT', N'可在使用者管理移至下一筆'),
+      (N'PAGE_ADMIN_USERS_LAST', N'使用者管理-最後一筆', N'PAGE_ADMIN_USERS', N'LAST', N'可在使用者管理移至最後一筆'),
+      (N'PAGE_ADMIN_PERMISSIONS_EDIT', N'權限設定-修改', N'PAGE_ADMIN_PERMISSIONS', N'EDIT', N'可在權限設定修改資料'),
+      (N'PAGE_ADMIN_PERMISSIONS_FIND', N'權限設定-尋找', N'PAGE_ADMIN_PERMISSIONS', N'FIND', N'可在權限設定使用尋找功能'),
+      (N'PAGE_ADMIN_PERMISSIONS_PRINT', N'權限設定-列印', N'PAGE_ADMIN_PERMISSIONS', N'PRINT', N'可列印權限設定'),
+      (N'PAGE_ADMIN_PERMISSIONS_FIRST', N'權限設定-第一筆', N'PAGE_ADMIN_PERMISSIONS', N'FIRST', N'可在權限設定移至第一筆'),
+      (N'PAGE_ADMIN_PERMISSIONS_PREVIOUS', N'權限設定-上一筆', N'PAGE_ADMIN_PERMISSIONS', N'PREVIOUS', N'可在權限設定移至上一筆'),
+      (N'PAGE_ADMIN_PERMISSIONS_NEXT', N'權限設定-下一筆', N'PAGE_ADMIN_PERMISSIONS', N'NEXT', N'可在權限設定移至下一筆'),
+      (N'PAGE_ADMIN_PERMISSIONS_LAST', N'權限設定-最後一筆', N'PAGE_ADMIN_PERMISSIONS', N'LAST', N'可在權限設定移至最後一筆'),
+      (N'PAGE_ADMIN_BRANDING_EDIT', N'公司形象-修改', N'PAGE_ADMIN_BRANDING', N'EDIT', N'可在公司形象修改資料'),
+      (N'PAGE_ADMIN_BRANDING_FIND', N'公司形象-尋找', N'PAGE_ADMIN_BRANDING', N'FIND', N'可在公司形象使用尋找功能'),
+      (N'PAGE_ADMIN_BRANDING_PRINT', N'公司形象-列印', N'PAGE_ADMIN_BRANDING', N'PRINT', N'可列印公司形象設定'),
+      (N'ADMIN_USERS_MANAGE', N'維護使用者', N'ADMIN', N'MANAGE', N'可新增、編輯、停用與重設使用者密碼'),
+      (N'ADMIN_PERMISSIONS_MANAGE', N'維護使用者權限', N'ADMIN', N'MANAGE', N'可調整使用者直綁權限'),
+      (N'ADMIN_BRANDING_MANAGE', N'維護公司形象', N'ADMIN', N'MANAGE', N'可調整公司名稱、Logo 與登入形象圖')
 ) AS source (PermissionCode, PermissionName, ModuleCode, ActionCode, Description)
 ON target.PermissionCode = source.PermissionCode
 WHEN MATCHED THEN
-    UPDATE SET
-        PermissionName = source.PermissionName,
-        ModuleCode = source.ModuleCode,
-        ActionCode = source.ActionCode,
-        Description = source.Description,
-        IsActive = 1
+  UPDATE SET PermissionName = source.PermissionName, ModuleCode = source.ModuleCode, ActionCode = source.ActionCode, Description = source.Description, IsActive = 1
 WHEN NOT MATCHED THEN
-    INSERT (PermissionCode, PermissionName, ModuleCode, ActionCode, Description, IsActive)
-    VALUES (source.PermissionCode, source.PermissionName, source.ModuleCode, source.ActionCode, source.Description, 1);
-GO
+  INSERT (PermissionCode, PermissionName, ModuleCode, ActionCode, Description, IsActive)
+  VALUES (source.PermissionCode, source.PermissionName, source.ModuleCode, source.ActionCode, source.Description, 1);
 
 MERGE dbo.AppAction AS target
 USING (
     VALUES
-        (N'NAVIGATE', N'進入', 10, CAST(1 AS BIT)),
-        (N'CREATE', N'新增', 20, CAST(0 AS BIT)),
-        (N'DELETE', N'刪除', 30, CAST(0 AS BIT)),
-        (N'COPY', N'複製', 40, CAST(0 AS BIT)),
-        (N'EDIT', N'修改', 50, CAST(0 AS BIT)),
-        (N'CANCEL', N'取消', 60, CAST(0 AS BIT)),
-        (N'FIND', N'尋找', 70, CAST(0 AS BIT)),
-        (N'PRINT', N'列印', 80, CAST(0 AS BIT)),
-        (N'FIRST', N'第一筆', 90, CAST(0 AS BIT)),
-        (N'PREVIOUS', N'上一筆', 100, CAST(0 AS BIT)),
-        (N'NEXT', N'下一筆', 110, CAST(0 AS BIT)),
-        (N'LAST', N'最後一筆', 120, CAST(0 AS BIT))
+      (N'NAVIGATE', N'進入', 10, CAST(1 AS BIT)),
+      (N'CREATE', N'新增', 20, CAST(0 AS BIT)),
+      (N'DELETE', N'刪除', 30, CAST(0 AS BIT)),
+      (N'COPY', N'複製', 40, CAST(0 AS BIT)),
+      (N'EDIT', N'修改', 50, CAST(0 AS BIT)),
+      (N'CANCEL', N'取消', 60, CAST(0 AS BIT)),
+      (N'FIND', N'尋找', 70, CAST(0 AS BIT)),
+      (N'PRINT', N'列印', 80, CAST(0 AS BIT)),
+      (N'FIRST', N'第一筆', 90, CAST(0 AS BIT)),
+      (N'PREVIOUS', N'上一筆', 100, CAST(0 AS BIT)),
+      (N'NEXT', N'下一筆', 110, CAST(0 AS BIT)),
+      (N'LAST', N'最後一筆', 120, CAST(0 AS BIT))
 ) AS source (ActionCode, ActionName, SortOrder, IsSystemAction)
 ON target.ActionCode = source.ActionCode
 WHEN MATCHED THEN
-    UPDATE SET ActionName = source.ActionName, SortOrder = source.SortOrder, IsSystemAction = source.IsSystemAction, IsActive = 1
+  UPDATE SET ActionName = source.ActionName, SortOrder = source.SortOrder, IsSystemAction = source.IsSystemAction, IsActive = 1
 WHEN NOT MATCHED THEN
-    INSERT (ActionCode, ActionName, SortOrder, IsSystemAction, IsActive)
-    VALUES (source.ActionCode, source.ActionName, source.SortOrder, source.IsSystemAction, 1);
-GO
+  INSERT (ActionCode, ActionName, SortOrder, IsSystemAction, IsActive)
+  VALUES (source.ActionCode, source.ActionName, source.SortOrder, source.IsSystemAction, 1);
 
 MERGE dbo.AppPage AS target
 USING (
     VALUES
-        (N'PAGE_ADMIN_USERS', N'使用者管理', N'系統管理', N'Admin', N'Users', 10, 10),
-        (N'PAGE_ADMIN_PERMISSIONS', N'權限設定', N'系統管理', N'Admin', N'Permissions', 10, 20),
-        (N'PAGE_ADMIN_BRANDING', N'公司形象', N'系統管理', N'Admin', N'Branding', 10, 30),
-        (N'PAGE_DASHBOARD', N'基礎資料預留', N'基礎資料', N'Home', N'Index', 20, 10),
-        (N'PAGE_COMPONENT_TEST', N'元件測試頁面', N'基礎資料', N'Home', N'ComponentTest', 20, 20),
-        (N'PAGE_CUSTOMER_LAYOUT_TEST', N'客戶資料管理', N'基礎資料', N'Home', N'CustomerLayoutTest', 20, 30),
-        (N'PAGE_PRODUCT_LAYOUT_TEST', N'商品資料管理', N'基礎資料', N'Home', N'ProductLayoutTest', 20, 40),
-        (N'PAGE_PRODUCT_MATERIAL', N'商品材質管理', N'基礎資料', N'Home', N'MaterialLayoutTest', 20, 50)
+      (N'PAGE_ADMIN_USERS', N'使用者管理', N'系統管理', N'Admin', N'Users', 10, 10),
+      (N'PAGE_ADMIN_PERMISSIONS', N'權限設定', N'系統管理', N'Admin', N'Permissions', 10, 20),
+      (N'PAGE_ADMIN_BRANDING', N'公司形象', N'系統管理', N'Admin', N'Branding', 10, 30),
+      (N'PAGE_DASHBOARD', N'基礎資料預留', N'基礎資料', N'Home', N'Index', 20, 10),
+      (N'PAGE_COMPONENT_TEST', N'元件測試頁面', N'基礎資料', N'Home', N'ComponentTest', 20, 20),
+      (N'PAGE_CUSTOMER_LAYOUT_TEST', N'客戶資料管理', N'基礎資料', N'Home', N'CustomerLayoutTest', 20, 30),
+      (N'PAGE_PRODUCT_LAYOUT_TEST', N'商品資料管理', N'基礎資料', N'Home', N'ProductLayoutTest', 20, 40),
+      (N'PAGE_PRODUCT_MATERIAL', N'商品材質管理', N'基礎資料', N'Home', N'MaterialLayoutTest', 20, 50),
+      (N'PAGE_SALES_QUOTATION', N'報價單', N'銷售管理', N'Quotation', N'Index', 30, 10)
 ) AS source (PageCode, PageName, MenuGroup, ControllerName, ActionName, MenuSortOrder, SortOrder)
 ON target.PageCode = source.PageCode
 WHEN MATCHED THEN
-    UPDATE SET PageName = source.PageName, MenuGroup = source.MenuGroup, ControllerName = source.ControllerName, ActionName = source.ActionName,
-               MenuSortOrder = source.MenuSortOrder, SortOrder = source.SortOrder, IsActive = 1
+  UPDATE SET PageName = source.PageName, MenuGroup = source.MenuGroup, ControllerName = source.ControllerName, ActionName = source.ActionName,
+             MenuSortOrder = source.MenuSortOrder, SortOrder = source.SortOrder, IsActive = 1
 WHEN NOT MATCHED THEN
-    INSERT (PageCode, PageName, MenuGroup, ControllerName, ActionName, MenuSortOrder, SortOrder, IsActive)
-    VALUES (source.PageCode, source.PageName, source.MenuGroup, source.ControllerName, source.ActionName, source.MenuSortOrder, source.SortOrder, 1);
-GO
+  INSERT (PageCode, PageName, MenuGroup, ControllerName, ActionName, MenuSortOrder, SortOrder, IsActive)
+  VALUES (source.PageCode, source.PageName, source.MenuGroup, source.ControllerName, source.ActionName, source.MenuSortOrder, source.SortOrder, 1);
 
 MERGE dbo.PageAction AS target
 USING (
@@ -389,25 +768,25 @@ USING (
            CASE WHEN a.ActionCode = N'NAVIGATE' THEN pg.PageCode ELSE CONCAT(pg.PageCode, N'_', a.ActionCode) END AS PermissionCode
     FROM (
         VALUES
-            (N'PAGE_ADMIN_USERS', N'NAVIGATE'), (N'PAGE_ADMIN_USERS', N'CREATE'), (N'PAGE_ADMIN_USERS', N'DELETE'), (N'PAGE_ADMIN_USERS', N'EDIT'), (N'PAGE_ADMIN_USERS', N'FIND'), (N'PAGE_ADMIN_USERS', N'FIRST'), (N'PAGE_ADMIN_USERS', N'PREVIOUS'), (N'PAGE_ADMIN_USERS', N'NEXT'), (N'PAGE_ADMIN_USERS', N'LAST'),
-            (N'PAGE_ADMIN_PERMISSIONS', N'NAVIGATE'), (N'PAGE_ADMIN_PERMISSIONS', N'EDIT'), (N'PAGE_ADMIN_PERMISSIONS', N'FIND'), (N'PAGE_ADMIN_PERMISSIONS', N'FIRST'), (N'PAGE_ADMIN_PERMISSIONS', N'PREVIOUS'), (N'PAGE_ADMIN_PERMISSIONS', N'NEXT'), (N'PAGE_ADMIN_PERMISSIONS', N'LAST'),
-            (N'PAGE_ADMIN_BRANDING', N'NAVIGATE'), (N'PAGE_ADMIN_BRANDING', N'EDIT'), (N'PAGE_ADMIN_BRANDING', N'FIND'),
-            (N'PAGE_DASHBOARD', N'NAVIGATE'), (N'PAGE_DASHBOARD', N'FIND'), (N'PAGE_DASHBOARD', N'PRINT'), (N'PAGE_DASHBOARD', N'FIRST'), (N'PAGE_DASHBOARD', N'PREVIOUS'), (N'PAGE_DASHBOARD', N'NEXT'), (N'PAGE_DASHBOARD', N'LAST'),
-            (N'PAGE_COMPONENT_TEST', N'NAVIGATE'), (N'PAGE_COMPONENT_TEST', N'FIND'), (N'PAGE_COMPONENT_TEST', N'PRINT'), (N'PAGE_COMPONENT_TEST', N'FIRST'), (N'PAGE_COMPONENT_TEST', N'PREVIOUS'), (N'PAGE_COMPONENT_TEST', N'NEXT'), (N'PAGE_COMPONENT_TEST', N'LAST'),
-            (N'PAGE_CUSTOMER_LAYOUT_TEST', N'NAVIGATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'CREATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'DELETE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'COPY'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'EDIT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'CANCEL'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIND'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'PRINT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIRST'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'PREVIOUS'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'NEXT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'LAST'),
-            (N'PAGE_PRODUCT_LAYOUT_TEST', N'NAVIGATE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'CREATE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'DELETE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'COPY'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'EDIT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'CANCEL'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'FIND'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'PRINT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'FIRST'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'PREVIOUS'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'NEXT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'LAST'),
-            (N'PAGE_PRODUCT_MATERIAL', N'NAVIGATE'), (N'PAGE_PRODUCT_MATERIAL', N'CREATE'), (N'PAGE_PRODUCT_MATERIAL', N'DELETE'), (N'PAGE_PRODUCT_MATERIAL', N'COPY'), (N'PAGE_PRODUCT_MATERIAL', N'EDIT'), (N'PAGE_PRODUCT_MATERIAL', N'CANCEL'), (N'PAGE_PRODUCT_MATERIAL', N'FIND'), (N'PAGE_PRODUCT_MATERIAL', N'PRINT'), (N'PAGE_PRODUCT_MATERIAL', N'FIRST'), (N'PAGE_PRODUCT_MATERIAL', N'PREVIOUS'), (N'PAGE_PRODUCT_MATERIAL', N'NEXT'), (N'PAGE_PRODUCT_MATERIAL', N'LAST')
+          (N'PAGE_ADMIN_USERS', N'NAVIGATE'), (N'PAGE_ADMIN_USERS', N'CREATE'), (N'PAGE_ADMIN_USERS', N'DELETE'), (N'PAGE_ADMIN_USERS', N'EDIT'), (N'PAGE_ADMIN_USERS', N'FIND'), (N'PAGE_ADMIN_USERS', N'FIRST'), (N'PAGE_ADMIN_USERS', N'PREVIOUS'), (N'PAGE_ADMIN_USERS', N'NEXT'), (N'PAGE_ADMIN_USERS', N'LAST'),
+          (N'PAGE_ADMIN_PERMISSIONS', N'NAVIGATE'), (N'PAGE_ADMIN_PERMISSIONS', N'EDIT'), (N'PAGE_ADMIN_PERMISSIONS', N'FIND'), (N'PAGE_ADMIN_PERMISSIONS', N'FIRST'), (N'PAGE_ADMIN_PERMISSIONS', N'PREVIOUS'), (N'PAGE_ADMIN_PERMISSIONS', N'NEXT'), (N'PAGE_ADMIN_PERMISSIONS', N'LAST'),
+          (N'PAGE_ADMIN_BRANDING', N'NAVIGATE'), (N'PAGE_ADMIN_BRANDING', N'EDIT'), (N'PAGE_ADMIN_BRANDING', N'FIND'),
+          (N'PAGE_DASHBOARD', N'NAVIGATE'), (N'PAGE_DASHBOARD', N'FIND'), (N'PAGE_DASHBOARD', N'PRINT'), (N'PAGE_DASHBOARD', N'FIRST'), (N'PAGE_DASHBOARD', N'PREVIOUS'), (N'PAGE_DASHBOARD', N'NEXT'), (N'PAGE_DASHBOARD', N'LAST'),
+          (N'PAGE_COMPONENT_TEST', N'NAVIGATE'), (N'PAGE_COMPONENT_TEST', N'FIND'), (N'PAGE_COMPONENT_TEST', N'PRINT'), (N'PAGE_COMPONENT_TEST', N'FIRST'), (N'PAGE_COMPONENT_TEST', N'PREVIOUS'), (N'PAGE_COMPONENT_TEST', N'NEXT'), (N'PAGE_COMPONENT_TEST', N'LAST'),
+          (N'PAGE_CUSTOMER_LAYOUT_TEST', N'NAVIGATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'CREATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'DELETE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'COPY'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'EDIT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'CANCEL'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIND'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'PRINT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIRST'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'PREVIOUS'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'NEXT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'LAST'),
+          (N'PAGE_PRODUCT_LAYOUT_TEST', N'NAVIGATE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'CREATE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'DELETE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'COPY'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'EDIT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'CANCEL'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'FIND'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'PRINT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'FIRST'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'PREVIOUS'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'NEXT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'LAST'),
+          (N'PAGE_PRODUCT_MATERIAL', N'NAVIGATE'), (N'PAGE_PRODUCT_MATERIAL', N'CREATE'), (N'PAGE_PRODUCT_MATERIAL', N'DELETE'), (N'PAGE_PRODUCT_MATERIAL', N'COPY'), (N'PAGE_PRODUCT_MATERIAL', N'EDIT'), (N'PAGE_PRODUCT_MATERIAL', N'CANCEL'), (N'PAGE_PRODUCT_MATERIAL', N'FIND'), (N'PAGE_PRODUCT_MATERIAL', N'PRINT'), (N'PAGE_PRODUCT_MATERIAL', N'FIRST'), (N'PAGE_PRODUCT_MATERIAL', N'PREVIOUS'), (N'PAGE_PRODUCT_MATERIAL', N'NEXT'), (N'PAGE_PRODUCT_MATERIAL', N'LAST'),
+          (N'PAGE_SALES_QUOTATION', N'NAVIGATE'), (N'PAGE_SALES_QUOTATION', N'CREATE'), (N'PAGE_SALES_QUOTATION', N'DELETE'), (N'PAGE_SALES_QUOTATION', N'COPY'), (N'PAGE_SALES_QUOTATION', N'EDIT'), (N'PAGE_SALES_QUOTATION', N'CANCEL'), (N'PAGE_SALES_QUOTATION', N'FIND'), (N'PAGE_SALES_QUOTATION', N'PRINT'), (N'PAGE_SALES_QUOTATION', N'FIRST'), (N'PAGE_SALES_QUOTATION', N'PREVIOUS'), (N'PAGE_SALES_QUOTATION', N'NEXT'), (N'PAGE_SALES_QUOTATION', N'LAST')
     ) AS supported(PageCode, ActionCode)
     INNER JOIN dbo.AppPage pg ON pg.PageCode = supported.PageCode
     INNER JOIN dbo.AppAction a ON a.ActionCode = supported.ActionCode
 ) AS source (PageID, ActionID, PermissionCode)
 ON target.PageID = source.PageID AND target.ActionID = source.ActionID
 WHEN MATCHED THEN
-    UPDATE SET PermissionCode = source.PermissionCode, IsActive = 1
+  UPDATE SET PermissionCode = source.PermissionCode, IsActive = 1
 WHEN NOT MATCHED THEN
-    INSERT (PageID, ActionID, PermissionCode, IsActive)
-    VALUES (source.PageID, source.ActionID, source.PermissionCode, 1);
-GO
+  INSERT (PageID, ActionID, PermissionCode, IsActive)
+  VALUES (source.PageID, source.ActionID, source.PermissionCode, 1);
 
 MERGE dbo.AppPermission AS target
 USING (
@@ -422,27 +801,25 @@ USING (
 ) AS source (PermissionCode, PermissionName, ModuleCode, ActionCode, Description)
 ON target.PermissionCode = source.PermissionCode
 WHEN MATCHED THEN
-    UPDATE SET PermissionName = source.PermissionName, ModuleCode = source.ModuleCode, ActionCode = source.ActionCode, Description = source.Description, IsActive = 1
+  UPDATE SET PermissionName = source.PermissionName, ModuleCode = source.ModuleCode, ActionCode = source.ActionCode, Description = source.Description, IsActive = 1
 WHEN NOT MATCHED THEN
-    INSERT (PermissionCode, PermissionName, ModuleCode, ActionCode, Description, IsActive)
-    VALUES (source.PermissionCode, source.PermissionName, source.ModuleCode, source.ActionCode, source.Description, 1);
-GO
+  INSERT (PermissionCode, PermissionName, ModuleCode, ActionCode, Description, IsActive)
+  VALUES (source.PermissionCode, source.PermissionName, source.ModuleCode, source.ActionCode, source.Description, 1);
 
 MERGE dbo.AppRole AS target
 USING (
     VALUES
-        (N'ADMIN', N'系統管理員', N'完整系統權限。', CAST(1 AS BIT), CAST(1 AS BIT)),
-        (N'SALES', N'銷售', N'客戶與商品資料查詢及銷售常用維護。', CAST(0 AS BIT), CAST(1 AS BIT)),
-        (N'PURCHASING', N'採購', N'商品與採購相關資料維護預留。', CAST(0 AS BIT), CAST(1 AS BIT)),
-        (N'WAREHOUSE', N'倉管', N'庫存與出入庫相關資料維護預留。', CAST(0 AS BIT), CAST(1 AS BIT))
+      (N'ADMIN', N'系統管理員', N'完整系統權限。', CAST(1 AS BIT), CAST(1 AS BIT)),
+      (N'SALES', N'銷售', N'客戶與商品資料查詢及銷售常用維護。', CAST(0 AS BIT), CAST(1 AS BIT)),
+      (N'PURCHASING', N'採購', N'商品與採購相關資料維護預留。', CAST(0 AS BIT), CAST(1 AS BIT)),
+      (N'WAREHOUSE', N'倉管', N'庫存與出入庫相關資料維護預留。', CAST(0 AS BIT), CAST(1 AS BIT))
 ) AS source (RoleCode, RoleName, Description, IsSystemRole, IsActive)
 ON target.RoleCode = source.RoleCode
 WHEN MATCHED THEN
-    UPDATE SET RoleName = source.RoleName, Description = source.Description, IsSystemRole = source.IsSystemRole, IsActive = source.IsActive
+  UPDATE SET RoleName = source.RoleName, Description = source.Description, IsSystemRole = source.IsSystemRole, IsActive = source.IsActive
 WHEN NOT MATCHED THEN
-    INSERT (RoleCode, RoleName, Description, IsSystemRole, IsActive)
-    VALUES (source.RoleCode, source.RoleName, source.Description, source.IsSystemRole, source.IsActive);
-GO
+  INSERT (RoleCode, RoleName, Description, IsSystemRole, IsActive)
+  VALUES (source.RoleCode, source.RoleName, source.Description, source.IsSystemRole, source.IsActive);
 
 INSERT INTO dbo.RolePageAction (RoleID, PageActionID)
 SELECT r.RoleID, pa.PageActionID
@@ -450,45 +827,32 @@ FROM dbo.AppRole r
 CROSS JOIN dbo.PageAction pa
 WHERE r.RoleCode = N'ADMIN'
   AND NOT EXISTS (
-      SELECT 1
-      FROM dbo.RolePageAction existing
-      WHERE existing.RoleID = r.RoleID
-        AND existing.PageActionID = pa.PageActionID
+    SELECT 1 FROM dbo.RolePageAction existing
+    WHERE existing.RoleID = r.RoleID AND existing.PageActionID = pa.PageActionID
   );
-GO
 
 INSERT INTO dbo.RolePageAction (RoleID, PageActionID)
 SELECT r.RoleID, pa.PageActionID
 FROM dbo.AppRole r
 INNER JOIN (
     VALUES
-        (N'PAGE_CUSTOMER_LAYOUT_TEST'), (N'PAGE_CUSTOMER_LAYOUT_TEST_CREATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST_EDIT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_FIND'), (N'PAGE_CUSTOMER_LAYOUT_TEST_PRINT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_FIRST'), (N'PAGE_CUSTOMER_LAYOUT_TEST_PREVIOUS'), (N'PAGE_CUSTOMER_LAYOUT_TEST_NEXT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_LAST'),
-        (N'PAGE_PRODUCT_LAYOUT_TEST'), (N'PAGE_PRODUCT_LAYOUT_TEST_FIND'), (N'PAGE_PRODUCT_LAYOUT_TEST_PRINT'), (N'PAGE_PRODUCT_LAYOUT_TEST_FIRST'), (N'PAGE_PRODUCT_LAYOUT_TEST_PREVIOUS'), (N'PAGE_PRODUCT_LAYOUT_TEST_NEXT'), (N'PAGE_PRODUCT_LAYOUT_TEST_LAST'),
-        (N'PAGE_PRODUCT_MATERIAL'), (N'PAGE_PRODUCT_MATERIAL_FIND'), (N'PAGE_PRODUCT_MATERIAL_PRINT'), (N'PAGE_PRODUCT_MATERIAL_FIRST'), (N'PAGE_PRODUCT_MATERIAL_PREVIOUS'), (N'PAGE_PRODUCT_MATERIAL_NEXT'), (N'PAGE_PRODUCT_MATERIAL_LAST')
+      (N'PAGE_CUSTOMER_LAYOUT_TEST'), (N'PAGE_CUSTOMER_LAYOUT_TEST_CREATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST_EDIT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_FIND'), (N'PAGE_CUSTOMER_LAYOUT_TEST_PRINT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_FIRST'), (N'PAGE_CUSTOMER_LAYOUT_TEST_PREVIOUS'), (N'PAGE_CUSTOMER_LAYOUT_TEST_NEXT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_LAST'),
+      (N'PAGE_PRODUCT_LAYOUT_TEST'), (N'PAGE_PRODUCT_LAYOUT_TEST_FIND'), (N'PAGE_PRODUCT_LAYOUT_TEST_PRINT'), (N'PAGE_PRODUCT_LAYOUT_TEST_FIRST'), (N'PAGE_PRODUCT_LAYOUT_TEST_PREVIOUS'), (N'PAGE_PRODUCT_LAYOUT_TEST_NEXT'), (N'PAGE_PRODUCT_LAYOUT_TEST_LAST'),
+      (N'PAGE_PRODUCT_MATERIAL'), (N'PAGE_PRODUCT_MATERIAL_FIND'), (N'PAGE_PRODUCT_MATERIAL_PRINT'), (N'PAGE_PRODUCT_MATERIAL_FIRST'), (N'PAGE_PRODUCT_MATERIAL_PREVIOUS'), (N'PAGE_PRODUCT_MATERIAL_NEXT'), (N'PAGE_PRODUCT_MATERIAL_LAST'),
+      (N'PAGE_SALES_QUOTATION'), (N'PAGE_SALES_QUOTATION_CREATE'), (N'PAGE_SALES_QUOTATION_DELETE'), (N'PAGE_SALES_QUOTATION_COPY'), (N'PAGE_SALES_QUOTATION_EDIT'), (N'PAGE_SALES_QUOTATION_CANCEL'), (N'PAGE_SALES_QUOTATION_FIND'), (N'PAGE_SALES_QUOTATION_PRINT'), (N'PAGE_SALES_QUOTATION_FIRST'), (N'PAGE_SALES_QUOTATION_PREVIOUS'), (N'PAGE_SALES_QUOTATION_NEXT'), (N'PAGE_SALES_QUOTATION_LAST')
 ) AS allowed(PermissionCode) ON r.RoleCode = N'SALES'
 INNER JOIN dbo.PageAction pa ON pa.PermissionCode = allowed.PermissionCode
 WHERE NOT EXISTS (
-    SELECT 1
-    FROM dbo.RolePageAction existing
-    WHERE existing.RoleID = r.RoleID
-      AND existing.PageActionID = pa.PageActionID
+    SELECT 1 FROM dbo.RolePageAction existing
+    WHERE existing.RoleID = r.RoleID AND existing.PageActionID = pa.PageActionID
 );
-GO
 
 MERGE dbo.AppUser AS target
 USING (VALUES (N'Admin', N'系統管理員', N'資訊部', N'admin@example.com', CAST(1 AS BIT))) AS source (UserName, DisplayName, Department, Email, IsActive)
 ON target.UserName = source.UserName
-WHEN MATCHED THEN
-    UPDATE SET
-        DisplayName = source.DisplayName,
-        Department = source.Department,
-        Email = source.Email,
-        IsActive = source.IsActive,
-        UpdatedAt = SYSUTCDATETIME()
 WHEN NOT MATCHED THEN
-    INSERT (UserName, DisplayName, Department, Email, IsActive)
-    VALUES (source.UserName, source.DisplayName, source.Department, source.Email, source.IsActive);
-GO
+  INSERT (UserName, DisplayName, Department, Email, IsActive)
+  VALUES (source.UserName, source.DisplayName, source.Department, source.Email, source.IsActive);
 
 INSERT INTO dbo.UserPermission (AppUserID, PermissionID)
 SELECT u.AppUserID, p.PermissionID
@@ -496,12 +860,9 @@ FROM dbo.AppUser u
 CROSS JOIN dbo.AppPermission p
 WHERE u.UserName = N'Admin'
   AND NOT EXISTS (
-      SELECT 1
-      FROM dbo.UserPermission existing
-      WHERE existing.AppUserID = u.AppUserID
-        AND existing.PermissionID = p.PermissionID
+    SELECT 1 FROM dbo.UserPermission existing
+    WHERE existing.AppUserID = u.AppUserID AND existing.PermissionID = p.PermissionID
   );
-GO
 
 INSERT INTO dbo.UserRole (AppUserID, RoleID)
 SELECT u.AppUserID, r.RoleID
@@ -509,54 +870,34 @@ FROM dbo.AppUser u
 INNER JOIN dbo.AppRole r ON r.RoleCode = N'ADMIN'
 WHERE u.UserName = N'Admin'
   AND NOT EXISTS (
-      SELECT 1
-      FROM dbo.UserRole existing
-      WHERE existing.AppUserID = u.AppUserID
-        AND existing.RoleID = r.RoleID
+    SELECT 1 FROM dbo.UserRole existing
+    WHERE existing.AppUserID = u.AppUserID AND existing.RoleID = r.RoleID
   );
-GO
 
 MERGE dbo.SystemSetting AS target
 USING (
     VALUES
-        (N'COMPANY_NAME', N'公司名稱', N'品牌設定', N'新版進銷存系統', N'顯示於 Header 與登入頁的公司名稱。', CAST(1 AS BIT)),
-        (N'COMPANY_LOGO_PATH', N'公司 Logo', N'品牌設定', N'', N'Header 與登入頁使用的 Logo 路徑。', CAST(1 AS BIT)),
-        (N'LOGIN_HERO_IMAGE_PATH', N'登入背景圖', N'品牌設定', N'', N'登入頁左側或背景圖片路徑。', CAST(1 AS BIT)),
-        (N'LOGIN_TITLE', N'登入標題', N'品牌設定', N'新版進銷存系統', N'登入頁主要標題。', CAST(1 AS BIT)),
-        (N'LOGIN_SUBTITLE', N'登入說明', N'品牌設定', N'請輸入帳號與密碼登入系統。', N'登入頁副標題說明。', CAST(1 AS BIT))
+      (N'COMPANY_NAME', N'公司名稱', N'公司形象', N'智慧進銷存系統', N'顯示於 Header 與系統標題', CAST(1 AS BIT)),
+      (N'COMPANY_LOGO_PATH', N'公司 Logo', N'公司形象', N'', N'Header 與 Login 使用的 Logo 路徑', CAST(1 AS BIT)),
+      (N'LOGIN_HERO_IMAGE_PATH', N'登入形象圖', N'公司形象', N'', N'登入頁左側形象圖路徑', CAST(1 AS BIT)),
+      (N'LOGIN_TITLE', N'登入標題', N'公司形象', N'智慧進銷存系統', N'登入頁主標題', CAST(1 AS BIT)),
+      (N'LOGIN_SUBTITLE', N'登入副標題', N'公司形象', N'請使用管理員提供的帳號登入', N'登入頁副標題', CAST(1 AS BIT))
 ) AS source (SettingKey, SettingName, Category, SettingValue, Description, IsActive)
 ON target.SettingKey = source.SettingKey
-WHEN MATCHED THEN
-    UPDATE SET
-        SettingName = source.SettingName,
-        Category = source.Category,
-        SettingValue = source.SettingValue,
-        Description = source.Description,
-        IsActive = source.IsActive,
-        UpdatedAt = SYSUTCDATETIME()
 WHEN NOT MATCHED THEN
-    INSERT (SettingKey, SettingName, Category, SettingValue, Description, IsActive)
-    VALUES (source.SettingKey, source.SettingName, source.Category, source.SettingValue, source.Description, source.IsActive);
-GO
+  INSERT (SettingKey, SettingName, Category, SettingValue, Description, IsActive)
+  VALUES (source.SettingKey, source.SettingName, source.Category, source.SettingValue, source.Description, source.IsActive);
 
 MERGE dbo.ProductMaterial AS target
 USING (
     VALUES
-        (N'MAT-001', N'鋁'),
-        (N'MAT-002', N'不鏽鋼'),
-        (N'MAT-003', N'鐵板'),
-        (N'MAT-004', N'銅')
+      (N'MAT-001', N'鋁'),
+      (N'MAT-002', N'不鏽鋼'),
+      (N'MAT-003', N'鐵板'),
+      (N'MAT-004', N'銅')
 ) AS source (MaterialCode, MaterialName)
 ON target.MaterialCode = source.MaterialCode
-WHEN MATCHED THEN
-    UPDATE SET
-        MaterialName = source.MaterialName,
-        IsActive = 1,
-        UpdatedAt = SYSUTCDATETIME()
 WHEN NOT MATCHED THEN
-    INSERT (MaterialCode, MaterialName, IsActive)
-    VALUES (source.MaterialCode, source.MaterialName, 1);
-GO
-
-PRINT N'SmartIMS database setup completed.';
+  INSERT (MaterialCode, MaterialName, IsActive)
+  VALUES (source.MaterialCode, source.MaterialName, 1);
 GO

@@ -1013,6 +1013,64 @@ body {
   cursor: pointer;
 }
 
+.customer-detail-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.customer-mode-badge {
+  border: 1px solid #b7c2ce;
+  border-radius: 4px;
+  padding: 3px 9px;
+  background: #f1f4f7;
+  color: #3c4c5e;
+  font-size: 13px;
+}
+
+.customer-detail-panel[data-mode="new"] {
+  border-left: 4px solid #ad6b08;
+}
+
+.customer-detail-panel[data-mode="new"] .customer-mode-badge {
+  background: #fff2cf;
+  border-color: #d4a442;
+  color: #744500;
+}
+
+.customer-detail-panel[data-mode="edit"] .customer-mode-badge {
+  background: #e6f0ff;
+  border-color: #91b2dd;
+  color: #174d88;
+}
+
+.customer-mode-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--app-text);
+  overflow-wrap: anywhere;
+}
+
+.customer-form-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px solid var(--app-border-soft);
+}
+
+.customer-form-actions [data-customer-save] {
+  min-width: 88px;
+}
+
+.customer-form-status {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
 .customer-detail-form textarea,
 .product-detail-form textarea {
   resize: vertical;
@@ -1178,4 +1236,18 @@ body {
     margin-left: 0;
     width: 100%;
   }
+}
+
+/* Quotation quantities use one decimal place without native spin buttons. */
+input.quotation-quantity,
+input.quotation-unit-price {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+input.quotation-quantity::-webkit-inner-spin-button,
+input.quotation-quantity::-webkit-outer-spin-button,
+input.quotation-unit-price::-webkit-inner-spin-button,
+input.quotation-unit-price::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }

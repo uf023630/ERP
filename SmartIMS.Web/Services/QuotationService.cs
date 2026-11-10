@@ -33,10 +33,16 @@ public sealed class QuotationService
                    q.TaxAmount,
                    q.TotalAmount,
                    q.Status,
-                   so.SONo
+                   so.SONo,
+                   productNames.Names
             FROM dbo.SalesQuote q
             INNER JOIN dbo.Customer c ON c.CustomerID = q.CustomerID
             LEFT JOIN dbo.SalesOrder so ON so.SourceQuoteID = q.SalesQuoteID
+            OUTER APPLY (
+                SELECT STRING_AGG(CONVERT(NVARCHAR(MAX), qi.ProductName), N' | ') AS Names
+                FROM dbo.SalesQuoteItem qi
+                WHERE qi.SalesQuoteID = q.SalesQuoteID
+            ) productNames
             ORDER BY q.QuoteDate DESC, q.SalesQuoteID DESC;
             """;
 
@@ -55,7 +61,8 @@ public sealed class QuotationService
                 reader.GetDecimal(8),
                 reader.GetDecimal(9),
                 reader.GetString(10),
-                reader.IsDBNull(11) ? null : reader.GetString(11)));
+                reader.IsDBNull(11) ? null : reader.GetString(11),
+                reader.IsDBNull(12) ? "" : reader.GetString(12)));
         }
 
         return new QuotationListViewModel { Quotations = items };
@@ -691,9 +698,19 @@ public sealed class QuotationService
             throw new InvalidOperationException("商品數量必須大於 0。");
         }
 
+        if (input.Quantity != decimal.Round(input.Quantity, 4))
+        {
+            throw new InvalidOperationException("商品數量最多只能有四位小數。");
+        }
+
         if (input.UnitPrice < 0)
         {
             throw new InvalidOperationException("商品單價不可小於 0。");
+        }
+
+        if (input.UnitPrice != decimal.Round(input.UnitPrice, 4))
+        {
+            throw new InvalidOperationException("商品單價最多只能有四位小數。");
         }
 
         string? defaultCode = null;
@@ -755,8 +772,9 @@ public sealed class QuotationService
             return new QuotationTotals(lineTotal - tax, tax, lineTotal);
         }
 
-        var exclusiveTax = RoundMoney(lineTotal * taxRate / 100m);
-        return new QuotationTotals(lineTotal, exclusiveTax, lineTotal + exclusiveTax);
+        var subtotal = Math.Round(lineTotal, 0, MidpointRounding.AwayFromZero);
+        var exclusiveTax = Math.Round(subtotal * taxRate / 100m, 0, MidpointRounding.AwayFromZero);
+        return new QuotationTotals(subtotal, exclusiveTax, subtotal + exclusiveTax);
     }
 
     private static void AddHeaderParameters(

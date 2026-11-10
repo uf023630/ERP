@@ -19,7 +19,11 @@ public sealed class DatabaseBootstrapper
         await using var connection = _connectionFactory.CreateConnection();
         await connection.OpenAsync();
 
+        await ExecuteAsync(connection, MasterDataSchemaSql);
+        await ExecuteAsync(connection, CustomerSchemaSql);
         await ExecuteAsync(connection, SchemaSql);
+        await ExecuteAsync(connection, ProductSchemaSql);
+        await ExecuteAsync(connection, CustomerNumberingSql);
         await ExecuteAsync(connection, SeedSql);
         await EnsureDefaultAdminPasswordAsync(connection);
     }
@@ -77,6 +81,95 @@ public sealed class DatabaseBootstrapper
         command.CommandText = commandText;
         await command.ExecuteNonQueryAsync();
     }
+
+    private const string MasterDataSchemaSql = """
+        IF OBJECT_ID('dbo.Customer', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.Customer (
+                CustomerID BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                CustomerCode NVARCHAR(50) NOT NULL,
+                CustomerName NVARCHAR(200) NOT NULL,
+                TaxId NVARCHAR(20) NULL,
+                ContactName NVARCHAR(100) NULL,
+                Phone NVARCHAR(50) NULL,
+                Address NVARCHAR(500) NULL,
+                TaxType VARCHAR(20) NULL,
+                IsActive BIT NOT NULL DEFAULT (1)
+            );
+        END;
+        IF OBJECT_ID('dbo.Product', 'U') IS NULL
+        BEGIN
+            CREATE TABLE dbo.Product (
+                ProductID BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                ProductCode NVARCHAR(50) NOT NULL,
+                ProductName NVARCHAR(200) NOT NULL,
+                Specification NVARCHAR(500) NULL,
+                Unit NVARCHAR(20) NULL,
+                UnitPrice DECIMAL(18,2) NOT NULL DEFAULT (0),
+                IsActive BIT NOT NULL DEFAULT (1)
+            );
+        END;
+        """;
+
+    private const string CustomerSchemaSql = """
+        IF COL_LENGTH('dbo.Customer', 'Fax') IS NULL
+            ALTER TABLE dbo.Customer ADD Fax NVARCHAR(50) NULL;
+        IF COL_LENGTH('dbo.Customer', 'Email') IS NULL
+            ALTER TABLE dbo.Customer ADD Email NVARCHAR(254) NULL;
+        IF COL_LENGTH('dbo.Customer', 'LineId') IS NULL
+            ALTER TABLE dbo.Customer ADD LineId NVARCHAR(100) NULL;
+        IF COL_LENGTH('dbo.Customer', 'ZipCode') IS NULL
+            ALTER TABLE dbo.Customer ADD ZipCode NVARCHAR(20) NULL;
+        IF COL_LENGTH('dbo.Customer', 'PaymentMethod') IS NULL
+            ALTER TABLE dbo.Customer ADD PaymentMethod NVARCHAR(20) NOT NULL DEFAULT (N'月結');
+        IF COL_LENGTH('dbo.Customer', 'BankAccount') IS NULL
+            ALTER TABLE dbo.Customer ADD BankAccount NVARCHAR(100) NULL;
+        IF COL_LENGTH('dbo.Customer', 'Note') IS NULL
+            ALTER TABLE dbo.Customer ADD Note NVARCHAR(2000) NULL;
+        IF COL_LENGTH('dbo.Customer', 'PaymentTermDays') IS NULL
+            ALTER TABLE dbo.Customer ADD PaymentTermDays INT NOT NULL DEFAULT (30);
+        IF EXISTS (
+            SELECT 1 FROM sys.extended_properties
+            WHERE class = 1 AND major_id = OBJECT_ID(N'dbo.Customer')
+              AND minor_id = COLUMNPROPERTY(OBJECT_ID(N'dbo.Customer'), N'CustomerName', 'ColumnId')
+              AND name = N'MS_Description'
+        )
+            EXEC sys.sp_updateextendedproperty @name=N'MS_Description', @value=N'公司名稱',
+                @level0type=N'SCHEMA', @level0name=N'dbo',
+                @level1type=N'TABLE', @level1name=N'Customer',
+                @level2type=N'COLUMN', @level2name=N'CustomerName';
+        ELSE
+            EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'公司名稱',
+                @level0type=N'SCHEMA', @level0name=N'dbo',
+                @level1type=N'TABLE', @level1name=N'Customer',
+                @level2type=N'COLUMN', @level2name=N'CustomerName';
+        """;
+
+    private const string ProductSchemaSql = """
+        SET QUOTED_IDENTIFIER ON;
+        SET ANSI_NULLS ON;
+        IF COL_LENGTH('dbo.Product', 'ProductMaterialID') IS NULL
+            ALTER TABLE dbo.Product ADD ProductMaterialID BIGINT NULL;
+        IF COL_LENGTH('dbo.Product', 'Thickness') IS NULL
+            ALTER TABLE dbo.Product ADD Thickness NVARCHAR(50) NULL;
+        IF COL_LENGTH('dbo.Product', 'Length') IS NULL
+            ALTER TABLE dbo.Product ADD Length NVARCHAR(50) NULL;
+        IF COL_LENGTH('dbo.Product', 'Width') IS NULL
+            ALTER TABLE dbo.Product ADD Width NVARCHAR(50) NULL;
+        IF COL_LENGTH('dbo.Product', 'Note') IS NULL
+            ALTER TABLE dbo.Product ADD Note NVARCHAR(2000) NULL;
+        IF COL_LENGTH('dbo.Product', 'CreatedAt') IS NULL
+            ALTER TABLE dbo.Product ADD CreatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Product_CreatedAt DEFAULT (SYSUTCDATETIME());
+        IF COL_LENGTH('dbo.Product', 'UpdatedAt') IS NULL
+            ALTER TABLE dbo.Product ADD UpdatedAt DATETIME2(0) NOT NULL CONSTRAINT DF_Product_UpdatedAt DEFAULT (SYSUTCDATETIME());
+        IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Product_ProductMaterial')
+            ALTER TABLE dbo.Product WITH CHECK ADD CONSTRAINT FK_Product_ProductMaterial
+                FOREIGN KEY (ProductMaterialID) REFERENCES dbo.ProductMaterial(ProductMaterialID);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_Product_Code_Active' AND object_id = OBJECT_ID('dbo.Product'))
+            EXEC('CREATE UNIQUE INDEX UQ_Product_Code_Active ON dbo.Product(ProductCode) WHERE IsActive = 1;');
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Product_ProductMaterial' AND object_id = OBJECT_ID('dbo.Product'))
+            EXEC('CREATE INDEX IX_Product_ProductMaterial ON dbo.Product(ProductMaterialID, IsActive);');
+        """;
 
     private const string SchemaSql = """
         IF OBJECT_ID('dbo.AppUser', 'U') IS NULL
@@ -844,10 +937,48 @@ public sealed class DatabaseBootstrapper
               (N'MAT-004', N'銅')
         ) AS source (MaterialCode, MaterialName)
         ON target.MaterialCode = source.MaterialCode
-        WHEN MATCHED THEN
-          UPDATE SET MaterialName = source.MaterialName, IsActive = 1, UpdatedAt = SYSUTCDATETIME()
         WHEN NOT MATCHED THEN
           INSERT (MaterialCode, MaterialName, IsActive)
           VALUES (source.MaterialCode, source.MaterialName, 1);
+        """;
+    private const string CustomerNumberingSql = """
+        -- Customer codes: C00001 through C99999. Run after the core schema exists.
+        SET XACT_ABORT ON;
+        SET QUOTED_IDENTIFIER ON;
+        SET ANSI_NULLS ON;
+        BEGIN TRANSACTION;
+        IF NOT EXISTS (SELECT 1 FROM dbo.NumberSequence WITH (UPDLOCK, HOLDLOCK) WHERE SequenceKey = N'CUSTOMER')
+            INSERT INTO dbo.NumberSequence (SequenceKey, Prefix, CurrentValue, PaddingLength)
+            VALUES (N'CUSTOMER', N'C', 0, 5);
+        DECLARE @Current BIGINT, @MaxCode BIGINT, @InvalidCount BIGINT, @CustomerCount BIGINT;
+        SELECT @Current = CurrentValue FROM dbo.NumberSequence WITH (UPDLOCK, HOLDLOCK) WHERE SequenceKey = N'CUSTOMER';
+        SELECT @CustomerCount = COUNT_BIG(*) FROM dbo.Customer WITH (TABLOCKX, HOLDLOCK);
+        SELECT @MaxCode = ISNULL(MAX(TRY_CONVERT(BIGINT, SUBSTRING(CustomerCode, 2, 5))), 0)
+        FROM dbo.Customer
+        WHERE DATALENGTH(CustomerCode) = 12
+          AND CustomerCode COLLATE Latin1_General_100_BIN2 LIKE N'C[0-9][0-9][0-9][0-9][0-9]'
+          AND TRY_CONVERT(BIGINT, SUBSTRING(CustomerCode, 2, 5)) BETWEEN 1 AND 99999;
+        SET @Current = CASE WHEN @Current > @MaxCode THEN @Current ELSE @MaxCode END;
+        DECLARE @Renumbered TABLE (CustomerID BIGINT PRIMARY KEY, OldCode NVARCHAR(50), NewCode NVARCHAR(50));
+        INSERT INTO @Renumbered (CustomerID, OldCode, NewCode)
+        SELECT CustomerID, CustomerCode,
+               N'C' + RIGHT(N'00000' + CONVERT(NVARCHAR(20), @Current + ROW_NUMBER() OVER (ORDER BY CustomerID)), 5)
+        FROM dbo.Customer
+        WHERE NOT (DATALENGTH(CustomerCode) = 12
+          AND CustomerCode COLLATE Latin1_General_100_BIN2 LIKE N'C[0-9][0-9][0-9][0-9][0-9]'
+          AND TRY_CONVERT(BIGINT, SUBSTRING(CustomerCode, 2, 5)) BETWEEN 1 AND 99999);
+        SET @InvalidCount = @@ROWCOUNT;
+        IF @Current + @InvalidCount > 99999
+            THROW 50001, N'客戶編號已超過 C99999，無法使用五碼流水號。', 1;
+        UPDATE c SET CustomerCode = r.NewCode FROM dbo.Customer c INNER JOIN @Renumbered r ON r.CustomerID = c.CustomerID;
+        UPDATE q SET CustomerCode = r.NewCode FROM dbo.SalesQuote q INNER JOIN @Renumbered r ON r.CustomerID = q.CustomerID;
+        UPDATE s SET CustomerCode = r.NewCode FROM dbo.SalesOrder s INNER JOIN @Renumbered r ON r.CustomerID = s.CustomerID;
+        UPDATE dbo.NumberSequence
+        SET Prefix = N'C', PaddingLength = 5, CurrentValue = @Current + @InvalidCount, UpdatedAt = SYSUTCDATETIME()
+        WHERE SequenceKey = N'CUSTOMER'
+          AND (Prefix <> N'C' OR PaddingLength <> 5 OR CurrentValue <> @Current + @InvalidCount);
+        IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Customer') AND name = N'UQ_Customer_Code')
+            CREATE UNIQUE INDEX UQ_Customer_Code ON dbo.Customer(CustomerCode);
+        COMMIT TRANSACTION;
         """;
 }

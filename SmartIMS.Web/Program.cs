@@ -13,7 +13,9 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<ListViewSettingsService>();
 builder.Services.AddScoped<ProductMaterialService>();
+builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<QuotationService>();
+builder.Services.AddScoped<CustomerService>();
 
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

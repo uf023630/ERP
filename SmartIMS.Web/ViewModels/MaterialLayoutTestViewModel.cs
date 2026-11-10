@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using SmartIMS.Web.Models;
 using SmartIMS.Web.Services;
 
@@ -44,7 +45,9 @@ public sealed record ProductMaterialItem(
 public sealed class ProductMaterialSaveRequest
 {
     public long? ProductMaterialId { get; init; }
+    [Required, StringLength(50)]
     public string MaterialCode { get; init; } = "";
+    [Required, StringLength(100)]
     public string MaterialName { get; init; } = "";
 }
 

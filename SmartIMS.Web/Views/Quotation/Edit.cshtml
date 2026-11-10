@@ -54,7 +54,7 @@
     <input asp-for="TaxAmount" type="hidden" data-tax-input />
     <input asp-for="TotalAmount" type="hidden" data-total-input />
 
-    <div asp-validation-summary="ModelOnly" class="text-danger small mb-2"></div>
+    <div asp-validation-summary="All" class="text-danger small mb-2"></div>
     <span asp-validation-for="Lines" class="text-danger small"></span>
 
     <div class="win-panel mb-2">
@@ -75,13 +75,14 @@
                 <span asp-validation-for="ExpireDate" class="text-danger small"></span>
             </div>
             <div class="col-md-6">
-                <label asp-for="CustomerId" class="form-label">客戶</label>
+                <label asp-for="CustomerId" class="form-label">客戶名稱</label>
                 <input asp-for="CustomerId" type="hidden" data-selected-customer-id />
                 <div class="input-group input-group-sm quotation-customer-picker">
                     <input class="form-control"
-                           value="@(selectedCustomer is null ? "" : $"{selectedCustomer.CustomerCode} - {selectedCustomer.CustomerName}")"
-                           placeholder="請選擇客戶"
-                           readonly
+                           value="@selectedCustomer?.CustomerName"
+                           placeholder="輸入公司名稱，或按放大鏡選擇"
+                           list="quotation-customer-suggestions"
+                           autocomplete="off"
                            data-customer-display />
                     @if (canEdit)
                     {
@@ -94,6 +95,12 @@
                         </button>
                     }
                 </div>
+                <datalist id="quotation-customer-suggestions">
+                    @foreach (var customer in Model.Customers)
+                    {
+                        <option value="@customer.CustomerName"></option>
+                    }
+                </datalist>
                 <span asp-validation-for="CustomerId" class="text-danger small"></span>
             </div>
             <div class="col-md-2">
@@ -177,6 +184,8 @@
                                     <input name="Lines[@index].ProductCode"
                                            value="@line.ProductCode"
                                            class="form-control"
+                                           list="quotation-product-suggestions"
+                                           autocomplete="off"
                                            data-field="ProductCode" />
                                     @if (canEdit)
                                     {
@@ -193,8 +202,8 @@
                             <td><input name="Lines[@index].ProductName" value="@line.ProductName" class="form-control form-control-sm" required data-field="ProductName" /></td>
                             <td><input name="Lines[@index].Specification" value="@line.Specification" class="form-control form-control-sm" data-field="Specification" /></td>
                             <td><input name="Lines[@index].Unit" value="@line.Unit" class="form-control form-control-sm" data-field="Unit" /></td>
-                            <td><input name="Lines[@index].Quantity" value="@line.Quantity.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end" type="number" min="0.0001" step="0.0001" required data-field="Quantity" /></td>
-                            <td><input name="Lines[@index].UnitPrice" value="@line.UnitPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end" type="number" min="0" step="0.01" required data-field="UnitPrice" /></td>
+                            <td><input name="Lines[@index].Quantity" value="@line.Quantity.ToString("0.0###", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end quotation-quantity" type="number" min="0.0001" step="0.0001" required data-field="Quantity" /></td>
+                            <td><input name="Lines[@index].UnitPrice" value="@line.UnitPrice.ToString("0.0###", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end quotation-unit-price" type="number" min="0" step="0.0001" required data-field="UnitPrice" /></td>
                             <td>
                                 <input name="Lines[@index].LineAmount"
                                        value="@line.LineAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
@@ -228,6 +237,13 @@
             </div>
         }
     </div>
+
+    <datalist id="quotation-product-suggestions">
+        @foreach (var product in Model.Products)
+        {
+            <option value="@product.ProductCode" label="@product.ProductName"></option>
+        }
+    </datalist>
 
     @if (canEdit)
     {
@@ -425,6 +441,47 @@
             var selectedProductOption = null;
             var customerIdInput = root.querySelector("[data-selected-customer-id]");
             var customerDisplay = root.querySelector("[data-customer-display]");
+            var serverErrors = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewData.ModelState.Values.SelectMany(state => state.Errors).Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage) ? "輸入資料格式不正確。" : error.ErrorMessage).Distinct().ToArray()));
+            if (serverErrors.length) {
+                window.alert("報價單未儲存，請修正以下問題：\n" + serverErrors.join("\n"));
+            }
+
+            var invalidAlertPending = false;
+            function showInvalidAlert(message) {
+                if (invalidAlertPending) return;
+                invalidAlertPending = true;
+                window.setTimeout(function () {
+                    window.alert("報價單未儲存：" + message);
+                    invalidAlertPending = false;
+                }, 0);
+            }
+
+            root.addEventListener("invalid", function (event) {
+                var field = event.target;
+                var row = field.closest("[data-line]");
+                var label = row ? "第 " + row.querySelector("[data-line-number]").textContent.trim() + " 項商品的" : "";
+                var names = { ProductName: "商品名稱", Quantity: "數量", UnitPrice: "單價" };
+                label += names[field.dataset.field] || field.labels?.[0]?.textContent.trim() || "欄位";
+                var message = field.validity.stepMismatch ? "最多可輸入四位小數。" : field.validationMessage;
+                showInvalidAlert("請檢查" + label + "。" + message);
+            }, true);
+
+            root.addEventListener("submit", function (event) {
+                if (event.submitter && event.submitter.formNoValidate) return;
+                if (!customerIdInput.value) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    window.alert("報價單未儲存：請選擇客戶。");
+                    customerDisplay.focus();
+                }
+            }, true);
+
+            if (window.jQuery) {
+                window.jQuery(root).on("invalid-form.validate", function (event, validator) {
+                    var error = validator.errorList && validator.errorList[0];
+                    showInvalidAlert(error ? error.message : "請檢查輸入資料。");
+                });
+            }
             var customerModalElement = root.querySelector("[data-customer-modal]");
             var customerSearch = root.querySelector("[data-customer-search]");
             var customerResultStatus = root.querySelector("[data-customer-result-status]");
@@ -445,10 +502,19 @@
                 return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
             }
 
+            function formatDecimalInput(input) {
+                var value = input.value.trim();
+                if (!/^\d+(?:\.\d{0,4})?$/.test(value)) return;
+                var parts = value.split(".");
+                var fraction = (parts[1] || "").replace(/0+$/, "");
+                input.value = parts[0] + "." + (fraction || "0");
+            }
+
             function formatMoney(value) {
+                var digits = taxType.value === "@QuotationTaxTypes.Inclusive" ? 2 : 0;
                 return Number(value || 0).toLocaleString("zh-TW", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
+                    minimumFractionDigits: digits,
+                    maximumFractionDigits: digits
                 });
             }
 
@@ -496,17 +562,25 @@
                 customerModal.show();
             }
 
+            function fillCustomer(option) {
+                customerIdInput.value = option.dataset.customerId || "";
+                customerDisplay.value = option.dataset.name || "";
+                root.querySelector("[data-customer-tax-id]").value = option.dataset.taxId || "";
+                root.querySelector("[data-customer-contact]").value = option.dataset.contact || "";
+                root.querySelector("[data-customer-phone]").value = option.dataset.phone || "";
+                root.querySelector("[data-customer-address]").value = option.dataset.address || "";
+                if (option.dataset.taxType === "@QuotationTaxTypes.Inclusive" || option.dataset.taxType === "@QuotationTaxTypes.Exclusive") {
+                    taxType.value = option.dataset.taxType;
+                    calculate();
+                }
+            }
+
             function applySelectedCustomer() {
                 if (!selectedCustomerOption) {
                     return;
                 }
 
-                customerIdInput.value = selectedCustomerOption.dataset.customerId || "";
-                customerDisplay.value = (selectedCustomerOption.dataset.code || "") + " - " + (selectedCustomerOption.dataset.name || "");
-                root.querySelector("[data-customer-tax-id]").value = selectedCustomerOption.dataset.taxId || "";
-                root.querySelector("[data-customer-contact]").value = selectedCustomerOption.dataset.contact || "";
-                root.querySelector("[data-customer-phone]").value = selectedCustomerOption.dataset.phone || "";
-                root.querySelector("[data-customer-address]").value = selectedCustomerOption.dataset.address || "";
+                fillCustomer(selectedCustomerOption);
                 customerModal.hide();
                 taxType.focus();
             }
@@ -518,13 +592,15 @@
                 input.dataset.field = field;
                 input.className = "form-control form-control-sm" + (extraClass ? " " + extraClass : "");
                 if (field === "Quantity") {
+                    input.classList.add("quotation-quantity");
                     input.min = "0.0001";
                     input.step = "0.0001";
                     input.required = true;
                 }
                 if (field === "UnitPrice") {
+                    input.classList.add("quotation-unit-price");
                     input.min = "0";
-                    input.step = "0.01";
+                    input.step = "0.0001";
                     input.required = true;
                 }
                 if (field === "ProductName") {
@@ -564,6 +640,8 @@
                 productCodeGroup.className = "input-group input-group-sm quotation-product-code-group";
                 var productCodeInput = createInput("ProductCode", "text", data.productCode || "");
                 productCodeInput.className = "form-control";
+                productCodeInput.setAttribute("list", "quotation-product-suggestions");
+                productCodeInput.autocomplete = "off";
                 productCodeGroup.appendChild(productCodeInput);
                 var lookup = document.createElement("button");
                 lookup.type = "button";
@@ -602,6 +680,7 @@
                 row.appendChild(actionCell);
 
                 body.appendChild(row);
+                row.querySelectorAll('[data-field="Quantity"], [data-field="UnitPrice"]').forEach(formatDecimalInput);
                 renumberLines();
                 calculate();
                 row.querySelector('[data-field="ProductCode"]').focus();
@@ -614,6 +693,7 @@
                 row.querySelector('[data-field="ItemSource"]').value = "Manual";
                 row.querySelector('[data-field="Quantity"]').value = "1";
                 row.querySelector('[data-field="UnitPrice"]').value = "0";
+                row.querySelectorAll('[data-field="Quantity"], [data-field="UnitPrice"]').forEach(formatDecimalInput);
                 calculate();
                 row.querySelector('[data-field="ProductCode"]').focus();
             }
@@ -659,22 +739,24 @@
                 productModal.show();
             }
 
-            function applySelectedProduct() {
-                if (!targetProductRow || !selectedProductOption) {
-                    return;
-                }
-
-                targetProductRow.querySelector('[data-field="ProductId"]').value = selectedProductOption.dataset.productId || "";
-                targetProductRow.querySelector('[data-field="ItemSource"]').value = "Product";
-                targetProductRow.querySelector('[data-field="ProductCode"]').value = selectedProductOption.dataset.code || "";
-                targetProductRow.querySelector('[data-field="ProductName"]').value = selectedProductOption.dataset.name || "";
-                targetProductRow.querySelector('[data-field="Specification"]').value = selectedProductOption.dataset.specification || "";
-                targetProductRow.querySelector('[data-field="Unit"]').value = selectedProductOption.dataset.unit || "";
-                targetProductRow.querySelector('[data-field="UnitPrice"]').value = selectedProductOption.dataset.price || "0";
-                if (!(parseFloat(targetProductRow.querySelector('[data-field="Quantity"]').value) > 0)) {
-                    targetProductRow.querySelector('[data-field="Quantity"]').value = "1";
+            function fillProduct(row, option) {
+                row.querySelector('[data-field="ProductId"]').value = option.dataset.productId || "";
+                row.querySelector('[data-field="ItemSource"]').value = "Product";
+                row.querySelector('[data-field="ProductCode"]').value = option.dataset.code || "";
+                row.querySelector('[data-field="ProductName"]').value = option.dataset.name || "";
+                row.querySelector('[data-field="Specification"]').value = option.dataset.specification || "";
+                row.querySelector('[data-field="Unit"]').value = option.dataset.unit || "";
+                row.querySelector('[data-field="UnitPrice"]').value = option.dataset.price || "0";
+                formatDecimalInput(row.querySelector('[data-field="UnitPrice"]'));
+                if (!(parseFloat(row.querySelector('[data-field="Quantity"]').value) > 0)) {
+                    row.querySelector('[data-field="Quantity"]').value = "1";
                 }
                 calculate();
+            }
+
+            function applySelectedProduct() {
+                if (!targetProductRow || !selectedProductOption) return;
+                fillProduct(targetProductRow, selectedProductOption);
                 productModal.hide();
                 targetProductRow.querySelector('[data-field="Quantity"]').focus();
             }
@@ -709,9 +791,9 @@
                     subtotal = roundMoney(total - tax);
                     taxLabel.textContent = "內含稅額";
                 } else {
-                    subtotal = grossLineTotal;
-                    tax = roundMoney(subtotal * rate / 100);
-                    total = roundMoney(subtotal + tax);
+                    subtotal = Math.round(grossLineTotal);
+                    tax = Math.round(subtotal * rate / 100 + Number.EPSILON);
+                    total = subtotal + tax;
                     taxLabel.textContent = "外加稅額";
                 }
 
@@ -724,6 +806,19 @@
             }
 
             if (editable) {
+                customerDisplay.addEventListener("input", function () {
+                    var query = customerDisplay.value.trim().toLowerCase();
+                    var matches = customerOptions().filter(function (option) {
+                        return query && [option.dataset.name].some(function (value) {
+                            return (value || "").toLowerCase() === query;
+                        });
+                    });
+                    customerIdInput.value = "";
+                    ["tax-id", "contact", "phone", "address"].forEach(function (field) {
+                        root.querySelector("[data-customer-" + field + "]").value = "";
+                    });
+                    if (matches.length === 1) fillCustomer(matches[0]);
+                });
                 root.querySelector("[data-open-customer-picker]").addEventListener("click", openCustomerPicker);
                 customerOptions().forEach(function (option) {
                     option.addEventListener("click", function () {
@@ -779,8 +874,34 @@
                 });
 
                 body.addEventListener("input", function (event) {
+                    if (event.target.matches('[data-field="ProductCode"]')) {
+                        var row = event.target.closest("[data-line]");
+                        var code = event.target.value.trim().toLowerCase();
+                        var linked = row.querySelector('[data-field="ProductId"]');
+                        var previous = productOptions().find(function (option) { return option.dataset.productId === linked.value; });
+                        if (previous && previous.dataset.code.toLowerCase() !== code) {
+                            linked.value = "";
+                            row.querySelector('[data-field="ItemSource"]').value = "Manual";
+                            [["ProductName", "name"], ["Specification", "specification"], ["Unit", "unit"], ["UnitPrice", "price"]].forEach(function (pair) {
+                                var input = row.querySelector('[data-field="' + pair[0] + '"]');
+                                var original = previous.dataset[pair[1]] || "";
+                                if (input.value === original || (pair[0] === "UnitPrice" && Number(input.value) === Number(original))) {
+                                    input.value = pair[0] === "UnitPrice" ? "0.0" : "";
+                                }
+                            });
+                            calculate();
+                        }
+                        var matches = productOptions().filter(function (option) { return code && option.dataset.code.toLowerCase() === code; });
+                        if (matches.length === 1) fillProduct(row, matches[0]);
+                    }
                     if (event.target.matches('[data-field="Quantity"], [data-field="UnitPrice"]')) {
                         calculate();
+                    }
+                });
+
+                body.addEventListener("focusout", function (event) {
+                    if (event.target.matches('[data-field="Quantity"], [data-field="UnitPrice"]')) {
+                        formatDecimalInput(event.target);
                     }
                 });
 

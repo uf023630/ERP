@@ -1,3 +1,4 @@
+@model IReadOnlyList<SmartIMS.Web.ViewModels.CustomerItem>
 @{
     ViewData["Title"] = "客戶資料管理";
     ViewData["ToolbarPageCode"] = "PAGE_CUSTOMER_LAYOUT_TEST";
@@ -6,53 +7,67 @@
 
 <div class="page-title-row">
     <h1>客戶資料管理</h1>
-    <span class="text-muted small">Layout 測試資料，不連接資料庫</span>
+    <span class="text-muted small">客戶資料已連接資料庫</span>
 </div>
 
-<div class="customer-layout-test" data-customer-layout-test>
-    <div class="win-panel mb-2">
-        <div class="section-caption">客戶明細</div>
+<div class="customer-layout-test" data-customer-layout-test
+     data-can-create="@(User.HasClaim("smartims.permission", "PAGE_CUSTOMER_LAYOUT_TEST_CREATE") ? "true" : "false")"
+     data-can-edit="@(User.HasClaim("smartims.permission", "PAGE_CUSTOMER_LAYOUT_TEST_EDIT") ? "true" : "false")"
+     data-save-url="@Url.Action("SaveCustomer", "Home")"
+     data-delete-url="@Url.Action("DeleteCustomer", "Home")">
+    <div class="win-panel mb-2 customer-detail-panel" data-customer-detail data-mode="empty">
+        <div class="section-caption customer-detail-heading">
+            <span>客戶明細</span>
+            <span class="customer-mode-badge" data-customer-mode aria-live="polite">尚未選取客戶</span>
+        </div>
+        <p class="customer-mode-hint" data-customer-mode-hint>請點選下方客戶，或按上方「新增」建立新客戶。</p>
         <form id="customerForm" class="compact-form customer-detail-form">
+            @Html.AntiForgeryToken()
             <div class="row g-2">
                 <div class="col-md-3">
-                    <label class="form-label" for="owner">負責人</label>
-                    <input id="owner" name="owner" class="form-control form-control-sm" required />
+                    <label class="form-label" for="customerCode">客戶編號</label>
+                    <input id="customerCode" name="customerCode" class="form-control form-control-sm" maxlength="6" readonly placeholder="存檔後自動產生（C＋5碼）" aria-describedby="customerCodeHelp" />
+                    <div id="customerCodeHelp" class="form-text">系統自動編號，例如 C00001。</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" for="customerName">公司名稱</label>
+                    <input id="customerName" name="customerName" maxlength="200" class="form-control form-control-sm" required />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label" for="contact">聯絡人</label>
-                    <input id="contact" name="contact" class="form-control form-control-sm" />
+                    <input id="contact" name="contact" maxlength="100" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label" for="phone">電話</label>
-                    <input id="phone" name="phone" class="form-control form-control-sm" />
+                    <input id="phone" name="phone" maxlength="50" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label" for="fax">傳真</label>
-                    <input id="fax" name="fax" class="form-control form-control-sm" />
+                    <input id="fax" name="fax" maxlength="50" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label" for="email">Email</label>
-                    <input id="email" name="email" class="form-control form-control-sm" type="email" />
+                    <input id="email" name="email" maxlength="254" class="form-control form-control-sm" type="email" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label" for="line">LINE</label>
-                    <input id="line" name="line" class="form-control form-control-sm" />
+                    <input id="line" name="line" maxlength="100" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label" for="taxId">統一編號</label>
-                    <input id="taxId" name="taxId" class="form-control form-control-sm" />
+                    <input id="taxId" name="taxId" maxlength="20" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label" for="zipCode">郵遞區號</label>
-                    <input id="zipCode" name="zipCode" class="form-control form-control-sm" />
+                    <input id="zipCode" name="zipCode" maxlength="20" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-6">
                     <label class="form-label" for="deliveryAddress">送貨地址</label>
-                    <input id="deliveryAddress" name="deliveryAddress" class="form-control form-control-sm" />
+                    <input id="deliveryAddress" name="deliveryAddress" maxlength="500" class="form-control form-control-sm" />
                 </div>
                 <div class="col-md-3">
                     <label class="form-label" for="paymentMethod">預設付款方式</label>
-                    <select id="paymentMethod" name="paymentMethod" class="form-select form-select-sm">
+                    <select id="paymentMethod" name="paymentMethod" maxlength="20" class="form-select form-select-sm">
                         <option value="月結">月結</option>
                         <option value="現金">現金</option>
                         <option value="匯款">匯款</option>
@@ -61,12 +76,20 @@
                 </div>
                 <div class="col-md-3">
                     <label class="form-label" for="bankAccount">銀行帳號</label>
-                    <input id="bankAccount" name="bankAccount" class="form-control form-control-sm" />
+                    <input id="bankAccount" name="bankAccount" maxlength="100" class="form-control form-control-sm" />
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="note">備註</label>
-                    <textarea id="note" name="note" class="form-control form-control-sm" rows="3"></textarea>
+                    <textarea id="note" name="note" maxlength="2000" class="form-control form-control-sm" rows="3"></textarea>
                 </div>
+            </div>
+            <div class="customer-form-actions">
+                @if (User.HasClaim("smartims.permission", "PAGE_CUSTOMER_LAYOUT_TEST_CREATE") || User.HasClaim("smartims.permission", "PAGE_CUSTOMER_LAYOUT_TEST_EDIT"))
+                {
+                    <button type="submit" class="btn btn-sm btn-primary" data-customer-save disabled>存檔</button>
+                }
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-customer-cancel disabled>取消</button>
+                <span class="customer-form-status" data-customer-form-status role="status" aria-live="polite"></span>
             </div>
         </form>
     </div>
@@ -74,14 +97,15 @@
     <div class="win-panel">
         <div class="section-caption">客戶清單</div>
         <div class="customer-list-tools">
-            <input id="customerSearch" class="form-control form-control-sm" type="search" placeholder="輸入負責人、聯絡人、電話、統一編號或地址尋找" />
+            <input id="customerSearch" class="form-control form-control-sm" type="search" placeholder="輸入客戶編號、公司名稱、聯絡人、電話、統一編號或地址尋找" />
             <span class="customer-layout-status" data-customer-status></span>
         </div>
         <div class="listview-frame customer-list-frame">
             <table class="listview-table customer-list-table">
                 <thead>
                     <tr>
-                        <th style="width: 150px;">負責人</th>
+                        <th style="width: 100px;">客戶編號</th>
+                        <th style="width: 150px;">公司名稱</th>
                         <th style="width: 130px;">聯絡人</th>
                         <th style="width: 130px;">電話</th>
                         <th style="width: 130px;">Email</th>
@@ -98,274 +122,6 @@
 </div>
 
 @section Scripts {
-    <script>
-        (function () {
-            var customers = [
-                {
-                    owner: "宏達五金行",
-                    contact: "林志明",
-                    phone: "02-2399-1200",
-                    fax: "02-2399-1201",
-                    email: "sales@hongda.example",
-                    line: "hongda-sales",
-                    taxId: "24581234",
-                    zipCode: "100",
-                    deliveryAddress: "台北市中正區重慶南路一段 10 號",
-                    paymentMethod: "月結",
-                    bankAccount: "808-1234567890",
-                    note: "每週二固定配送。"
-                },
-                {
-                    owner: "東海食品有限公司",
-                    contact: "陳怡君",
-                    phone: "04-2258-3300",
-                    fax: "04-2258-3301",
-                    email: "contact@donghai.example",
-                    line: "donghai-food",
-                    taxId: "53770019",
-                    zipCode: "407",
-                    deliveryAddress: "台中市西屯區市政北二路 88 號",
-                    paymentMethod: "匯款",
-                    bankAccount: "012-5566778899",
-                    note: "需附發票與出貨明細。"
-                },
-                {
-                    owner: "南港材料行",
-                    contact: "王建宏",
-                    phone: "02-2786-5018",
-                    fax: "02-2786-5019",
-                    email: "order@nangang.example",
-                    line: "nangang-order",
-                    taxId: "80126655",
-                    zipCode: "115",
-                    deliveryAddress: "台北市南港區園區街 3 號",
-                    paymentMethod: "票據",
-                    bankAccount: "700-9911223344",
-                    note: "月底對帳。"
-                }
-            ];
-
-            var selectedIndex = 0;
-            var filteredIndexes = customers.map(function (_, index) { return index; });
-            var root = document.querySelector("[data-customer-layout-test]");
-            var tableBody = document.getElementById("customerRows");
-            var form = document.getElementById("customerForm");
-            var search = document.getElementById("customerSearch");
-            var status = root.querySelector("[data-customer-status]");
-            var fields = ["owner", "contact", "phone", "fax", "email", "line", "taxId", "zipCode", "deliveryAddress", "paymentMethod", "bankAccount", "note"];
-
-            function renderRows() {
-                tableBody.innerHTML = "";
-                filteredIndexes.forEach(function (customerIndex) {
-                    var customer = customers[customerIndex];
-                    var row = document.createElement("tr");
-                    row.dataset.customerIndex = String(customerIndex);
-                    row.className = customerIndex === selectedIndex ? "is-selected" : "";
-                    row.innerHTML =
-                        "<td>" + escapeHtml(customer.owner) + "</td>" +
-                        "<td>" + escapeHtml(customer.contact) + "</td>" +
-                        "<td>" + escapeHtml(customer.phone) + "</td>" +
-                        "<td>" + escapeHtml(customer.email) + "</td>" +
-                        "<td>" + escapeHtml(customer.line) + "</td>" +
-                        "<td>" + escapeHtml(customer.taxId) + "</td>" +
-                        "<td>" + escapeHtml(customer.deliveryAddress) + "</td>" +
-                        "<td>" + escapeHtml(customer.paymentMethod) + "</td>";
-                    row.addEventListener("click", function () {
-                        selectCustomer(customerIndex);
-                    });
-                    tableBody.appendChild(row);
-                });
-                setStatus("共 " + filteredIndexes.length + " 筆");
-            }
-
-            function selectCustomer(index) {
-                if (index < 0 || index >= customers.length) {
-                    clearForm();
-                    return;
-                }
-                selectedIndex = index;
-                fillForm(customers[selectedIndex]);
-                renderRows();
-            }
-
-            function fillForm(customer) {
-                fields.forEach(function (field) {
-                    form.elements[field].value = customer[field] || "";
-                });
-            }
-
-            function clearForm() {
-                fields.forEach(function (field) {
-                    form.elements[field].value = "";
-                });
-                form.elements.owner.focus();
-            }
-
-            function collectForm() {
-                var customer = {};
-                fields.forEach(function (field) {
-                    customer[field] = form.elements[field].value.trim();
-                });
-                return customer;
-            }
-
-            function createCustomer() {
-                clearForm();
-                selectedIndex = -1;
-                setStatus("新增模式，輸入資料後按修改圖示儲存到清單");
-            }
-
-            function copyCustomer() {
-                if (selectedIndex < 0 || customers.length === 0) {
-                    setStatus("沒有可複製的客戶");
-                    return;
-                }
-                var source = customers[selectedIndex];
-                fillForm(Object.assign({}, source, {
-                    owner: source.owner + " 複本",
-                    taxId: ""
-                }));
-                selectedIndex = -1;
-                renderRows();
-                form.elements.owner.focus();
-                setStatus("已複製目前客戶，按修改圖示儲存成新資料");
-            }
-
-            function saveCustomer() {
-                var customer = collectForm();
-                if (!customer.owner) {
-                    form.elements.owner.focus();
-                    setStatus("負責人不可空白");
-                    return;
-                }
-                if (selectedIndex >= 0) {
-                    customers[selectedIndex] = customer;
-                    setStatus("已修改目前客戶");
-                } else {
-                    customers.push(customer);
-                    selectedIndex = customers.length - 1;
-                    setStatus("已新增客戶");
-                }
-                applyFilter();
-                selectCustomer(selectedIndex);
-            }
-
-            function deleteCustomer() {
-                if (selectedIndex < 0 || customers.length === 0) {
-                    setStatus("沒有可刪除的客戶");
-                    return;
-                }
-                customers.splice(selectedIndex, 1);
-                selectedIndex = Math.min(selectedIndex, customers.length - 1);
-                applyFilter();
-                if (customers.length > 0) {
-                    selectCustomer(filteredIndexes[0] ?? selectedIndex);
-                } else {
-                    clearForm();
-                    renderRows();
-                }
-                setStatus("已刪除客戶");
-            }
-
-            function cancelEdit() {
-                if (selectedIndex >= 0 && customers[selectedIndex]) {
-                    fillForm(customers[selectedIndex]);
-                    setStatus("已取消編輯並還原目前客戶");
-                } else if (filteredIndexes.length > 0) {
-                    selectCustomer(filteredIndexes[0]);
-                    setStatus("已取消新增");
-                } else {
-                    clearForm();
-                    setStatus("已取消");
-                }
-            }
-
-            function applyFilter() {
-                var keyword = search.value.trim().toLowerCase();
-                filteredIndexes = customers
-                    .map(function (_, index) { return index; })
-                    .filter(function (index) {
-                        if (!keyword) {
-                            return true;
-                        }
-                        return fields.some(function (field) {
-                            return String(customers[index][field] || "").toLowerCase().indexOf(keyword) >= 0;
-                        });
-                    });
-                if (filteredIndexes.indexOf(selectedIndex) < 0) {
-                    selectedIndex = filteredIndexes.length > 0 ? filteredIndexes[0] : -1;
-                }
-                renderRows();
-            }
-
-            function moveSelection(action) {
-                if (filteredIndexes.length === 0) {
-                    selectedIndex = -1;
-                    clearForm();
-                    setStatus("沒有符合條件的客戶");
-                    return;
-                }
-                var position = filteredIndexes.indexOf(selectedIndex);
-                if (position < 0) {
-                    position = 0;
-                }
-                if (action === "first") {
-                    position = 0;
-                } else if (action === "previous") {
-                    position = Math.max(0, position - 1);
-                } else if (action === "next") {
-                    position = Math.min(filteredIndexes.length - 1, position + 1);
-                } else if (action === "last") {
-                    position = filteredIndexes.length - 1;
-                }
-                selectCustomer(filteredIndexes[position]);
-                setStatus((position + 1) + "/" + filteredIndexes.length);
-            }
-
-            function setStatus(message) {
-                status.textContent = message;
-            }
-
-            function escapeHtml(value) {
-                return String(value || "")
-                    .replace(/&/g, "&amp;")
-                    .replace(/</g, "&lt;")
-                    .replace(/>/g, "&gt;")
-                    .replace(/"/g, "&quot;")
-                    .replace(/'/g, "&#039;");
-            }
-
-            document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
-                var action = event.detail.action;
-                if (action === "create") {
-                    event.preventDefault();
-                    createCustomer();
-                } else if (action === "edit") {
-                    event.preventDefault();
-                    saveCustomer();
-                } else if (action === "copy") {
-                    event.preventDefault();
-                    copyCustomer();
-                } else if (action === "cancel") {
-                    event.preventDefault();
-                    cancelEdit();
-                } else if (action === "delete") {
-                    event.preventDefault();
-                    deleteCustomer();
-                } else if (action === "find") {
-                    event.preventDefault();
-                    search.focus();
-                    search.select();
-                    applyFilter();
-                } else if (["first", "previous", "next", "last"].indexOf(action) >= 0) {
-                    event.preventDefault();
-                    moveSelection(action);
-                }
-            });
-
-            search.addEventListener("input", applyFilter);
-            renderRows();
-            selectCustomer(0);
-        })();
-    </script>
+    <script type="application/json" id="customerData">@Json.Serialize(Model)</script>
+    <script src="~/js/customer-management.js" asp-append-version="true"></script>
 }

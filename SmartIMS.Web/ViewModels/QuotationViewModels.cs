@@ -46,7 +46,8 @@ public sealed record QuotationListItem(
     decimal TaxAmount,
     decimal TotalAmount,
     string Status,
-    string? SalesOrderNo);
+    string? SalesOrderNo,
+    string ProductNames);
 
 public sealed class QuotationDetailViewModel
 {
@@ -173,7 +174,7 @@ public sealed class QuotationLineInputModel
     [StringLength(20)]
     public string? Unit { get; set; }
 
-    [Range(typeof(decimal), "0.0001", "999999999", ErrorMessage = "數量必須大於 0")]
+    [Range(typeof(decimal), "0.0001", "999999999", ErrorMessage = "數量必須至少為 0.0001")]
     public decimal Quantity { get; set; } = 1m;
 
     [Range(typeof(decimal), "0", "999999999999", ErrorMessage = "單價不可小於 0")]

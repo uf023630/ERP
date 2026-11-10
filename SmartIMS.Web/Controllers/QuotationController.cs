@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using SmartIMS.Web.Security;
 using SmartIMS.Web.Services;
 using SmartIMS.Web.ViewModels;
@@ -11,10 +12,12 @@ namespace SmartIMS.Web.Controllers;
 public sealed class QuotationController : Controller
 {
     private readonly QuotationService _quotationService;
+    private readonly ILogger<QuotationController> _logger;
 
-    public QuotationController(QuotationService quotationService)
+    public QuotationController(QuotationService quotationService, ILogger<QuotationController> logger)
     {
         _quotationService = quotationService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -120,6 +123,22 @@ public sealed class QuotationController : Controller
             EnsureBlankLine(model);
             await _quotationService.PopulateLookupsAsync(model);
             await PopulateNavigationAsync(model);
+            return View("Edit", model);
+        }
+        catch (SqlException exception)
+        {
+            _logger.LogError(exception, "Failed to save quotation {QuotationId}", model.SalesQuoteId);
+            ModelState.AddModelError("", "資料庫儲存失敗，請稍後重試；若問題持續，請聯絡系統管理員查看日誌。");
+            EnsureBlankLine(model);
+            try
+            {
+                await _quotationService.PopulateLookupsAsync(model);
+                await PopulateNavigationAsync(model);
+            }
+            catch (SqlException lookupException)
+            {
+                _logger.LogError(lookupException, "Failed to reload quotation lookups after a save error");
+            }
             return View("Edit", model);
         }
     }

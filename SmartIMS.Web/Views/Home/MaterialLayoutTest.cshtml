@@ -13,22 +13,31 @@
 </div>
 
 <div class="material-layout-test" data-material-layout-test>
-    <div class="win-panel mb-2">
-        <div class="section-caption">材質明細</div>
+    <div class="win-panel mb-2 customer-detail-panel" data-detail-panel data-mode="empty">
+        <div class="section-caption customer-detail-heading"><span>材質明細</span><span class="customer-mode-badge" data-mode-badge aria-live="polite">尚未選取材質</span></div>
+        <p class="customer-mode-hint" data-mode-hint></p>
         <form id="materialForm" class="compact-form material-detail-form">
+            @Html.AntiForgeryToken()
             <input id="productMaterialId" name="ProductMaterialId" type="hidden" />
             <div class="row g-2 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label" for="materialCode">材質編碼</label>
-                    <input id="materialCode" name="MaterialCode" class="form-control form-control-sm" required />
+                    <input id="materialCode" name="MaterialCode" maxlength="50" class="form-control form-control-sm" required />
                 </div>
                 <div class="col-md-5">
                     <label class="form-label" for="materialName">材質名稱</label>
-                    <input id="materialName" name="MaterialName" class="form-control form-control-sm" required />
+                    <input id="materialName" name="MaterialName" maxlength="100" class="form-control form-control-sm" required />
                 </div>
                 <div class="col-md-4">
                     <div class="material-layout-status" data-material-status></div>
                 </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 mt-2">
+                @if (User.HasClaim("smartims.permission", "PAGE_PRODUCT_MATERIAL_CREATE") || User.HasClaim("smartims.permission", "PAGE_PRODUCT_MATERIAL_EDIT"))
+                {
+                    <button type="submit" class="btn btn-sm btn-primary" data-save>存檔</button>
+                }
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cancel>取消</button>
             </div>
         </form>
     </div>
@@ -55,9 +64,21 @@
             var form = document.getElementById("materialForm");
             var search = document.getElementById("materialSearch");
             var status = root.querySelector("[data-material-status]");
-            var selectedIndex = 0;
+            var selectedIndex = -1;
+            var busy = false;
             var materials = @Html.Raw(materialsJson);
             var filteredIndexes = materials.map(function (_, index) { return index; });
+
+            var mode = "empty";
+            function updateMode(value) {
+                mode = value;
+                root.querySelector("[data-detail-panel]").dataset.mode = value;
+                root.querySelector("[data-mode-badge]").textContent = value === "new" ? "新增材質｜尚未存檔" : value === "edit" ? "編輯既有材質" : "尚未選取材質";
+                root.querySelector("[data-mode-hint]").textContent = value === "new" ? "目前正在建立新材質，按「存檔」新增至資料庫，按「取消」放棄新增。" : value === "edit" ? "目前正在編輯既有材質，按「存檔」更新此筆資料，按「取消」還原修改。" : "請選取下方材質，或按上方「新增」建立資料。";
+                var save = root.querySelector("[data-save]");
+                if (save) { save.textContent = "存檔"; save.disabled = busy || value === "empty"; }
+                root.querySelector("[data-cancel]").disabled = busy || value === "empty";
+            }
 
             function renderRows() {
                 tableBody.innerHTML = "";
@@ -78,7 +99,7 @@
                     });
 
                     row.addEventListener("click", function () {
-                        selectMaterial(materialIndex);
+                        if (!busy) selectMaterial(materialIndex);
                     });
                     tableBody.appendChild(row);
                 });
@@ -98,6 +119,7 @@
 
             function selectMaterial(index) {
                 if (index < 0 || index >= materials.length) {
+                    selectedIndex = -1;
                     clearForm();
                     return;
                 }
@@ -108,16 +130,18 @@
             }
 
             function fillForm(material) {
+                updateMode("edit");
                 form.elements.ProductMaterialId.value = material.ProductMaterialId || "";
                 form.elements.MaterialCode.value = material.MaterialCode || "";
                 form.elements.MaterialName.value = material.MaterialName || "";
             }
 
-            function clearForm() {
+            function clearForm(focus) {
+                updateMode("empty");
                 form.elements.ProductMaterialId.value = "";
                 form.elements.MaterialCode.value = "";
                 form.elements.MaterialName.value = "";
-                form.elements.MaterialCode.focus();
+                if (focus !== false) form.elements.MaterialCode.focus();
             }
 
             function collectForm() {
@@ -132,7 +156,9 @@
                 selectedIndex = -1;
                 clearForm();
                 renderRows();
-                setStatus("新增模式，輸入後按修改圖示加入清單");
+                updateMode("new");
+                renderRows();
+                setStatus("新增資料，請按「存檔」儲存");
             }
 
             function copyMaterial() {
@@ -149,10 +175,12 @@
                 selectedIndex = -1;
                 renderRows();
                 form.elements.MaterialCode.focus();
-                setStatus("已複製目前材質，按修改圖示加入清單");
+                updateMode("new");
+                setStatus("已複製為新增草稿，請按「存檔」儲存");
             }
 
             async function saveMaterial() {
+                if (busy || mode === "empty" || !form.reportValidity()) return;
                 var material = collectForm();
                 if (!material.MaterialCode || !material.MaterialName) {
                     setStatus("材質編碼與材質名稱不可空白");
@@ -166,7 +194,7 @@
                     return;
                 }
 
-                var saved = result.data;
+                var saved = { ProductMaterialId: result.data.productMaterialId, MaterialCode: result.data.materialCode, MaterialName: result.data.materialName };
                 if (material.ProductMaterialId) {
                     var existingIndex = materials.findIndex(function (item) {
                         return item.ProductMaterialId === saved.ProductMaterialId;
@@ -181,11 +209,14 @@
                     selectedIndex = materials.length - 1;
                     setStatus("已新增材質");
                 }
+                updateMode("edit");
                 applyFilter();
                 selectMaterial(selectedIndex);
+                setStatus("材質資料已儲存至資料庫");
             }
 
             async function deleteMaterial() {
+                if (busy) return;
                 if (selectedIndex < 0 || materials.length === 0) {
                     setStatus("沒有可刪除的材質");
                     return;
@@ -197,6 +228,7 @@
                     return;
                 }
 
+                if (!window.confirm("確定要刪除目前材質？")) return;
                 var result = await postJson("@Url.Action("DeleteMaterial", "Home")", {
                     ProductMaterialId: material.ProductMaterialId
                 });
@@ -244,7 +276,7 @@
                         });
                     });
 
-                if (filteredIndexes.indexOf(selectedIndex) < 0) {
+                if (mode !== "new" && filteredIndexes.indexOf(selectedIndex) < 0) {
                     selectedIndex = filteredIndexes.length > 0 ? filteredIndexes[0] : -1;
                 }
                 renderRows();
@@ -282,6 +314,9 @@
             }
 
             async function postJson(url, payload) {
+                busy = true;
+                Array.from(form.elements).forEach(function (element) { element.disabled = true; });
+                search.disabled = true;
                 try {
                     var response = await fetch(url, {
                         method: "POST",
@@ -295,15 +330,20 @@
                         return {};
                     });
                     return {
-                        ok: response.ok,
+                        ok: response.ok && !response.redirected,
                         data: data,
-                        message: data.message
+                        message: data.message || "操作失敗，請確認登入狀態與權限。"
                     };
                 } catch {
                     return {
                         ok: false,
                         message: "無法連線至伺服器"
                     };
+                } finally {
+                    busy = false;
+                    Array.from(form.elements).forEach(function (element) { element.disabled = false; });
+                    search.disabled = false;
+                    updateMode(mode);
                 }
             }
 
@@ -313,6 +353,7 @@
             }
 
             document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                if (busy) { event.preventDefault(); return; }
                 var action = event.detail.action;
                 if (action === "create") {
                     event.preventDefault();
@@ -340,11 +381,13 @@
                 }
             });
 
-            search.addEventListener("input", applyFilter);
+            root.querySelector("[data-cancel]").addEventListener("click", cancelEdit);
+            form.addEventListener("submit", function (event) { event.preventDefault(); saveMaterial(); });
+            search.addEventListener("input", function () { applyFilter(); if (mode === "new") return; if (selectedIndex >= 0) fillForm(materials[selectedIndex]); else clearForm(false); });
 
             listView.addEventListener("click", function (event) {
                 var row = event.target.closest("tbody tr[data-material-index]");
-                if (row) {
+                if (row && !busy) {
                     selectMaterial(parseInt(row.dataset.materialIndex, 10));
                 }
             });
