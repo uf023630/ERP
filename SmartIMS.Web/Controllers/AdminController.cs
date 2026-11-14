@@ -147,7 +147,8 @@ public sealed class AdminController : Controller
             LoginHeroImagePath = branding.LoginHeroImagePath,
             LoginTitle = branding.LoginTitle,
             LoginSubtitle = branding.LoginSubtitle,
-            SkinKey = skin.SkinKey
+            SkinKey = skin.SkinKey,
+            SalesOrderPdfDirectory = branding.SalesOrderPdfDirectory
         });
     }
 
@@ -169,6 +170,17 @@ public sealed class AdminController : Controller
             return View(model);
         }
 
+        try
+        {
+            await new OrderPdfStorage(_settingsService, _environment).ValidateDirectoryAsync(model.SalesOrderPdfDirectory);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            ModelState.AddModelError(nameof(model.SalesOrderPdfDirectory), exception is InvalidOperationException
+                ? exception.Message : "無法建立或寫入此目錄，請確認路徑與 IIS 應用程式集區的寫入權限。");
+            return View(model);
+        }
+
         var logoPath = await SaveBrandingFileAsync(companyLogo) ?? model.CompanyLogoPath;
         var heroPath = await SaveBrandingFileAsync(loginHeroImage) ?? model.LoginHeroImagePath;
 
@@ -178,10 +190,11 @@ public sealed class AdminController : Controller
                 logoPath,
                 heroPath,
                 model.LoginTitle.Trim(),
-                model.LoginSubtitle.Trim()),
+                model.LoginSubtitle.Trim(),
+                model.SalesOrderPdfDirectory.Trim()),
             SystemSkin.Create(model.SkinKey));
 
-        TempData["StatusMessage"] = "公司形象設定已儲存";
+        TempData["StatusMessage"] = "系統參數設定已儲存";
         return RedirectToAction(nameof(Branding));
     }
 

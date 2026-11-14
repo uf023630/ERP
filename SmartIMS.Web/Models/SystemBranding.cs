@@ -5,4 +5,5 @@ public sealed record SystemBranding(
     string? CompanyLogoPath,
     string? LoginHeroImagePath,
     string LoginTitle,
-    string LoginSubtitle);
+    string LoginSubtitle,
+    string SalesOrderPdfDirectory = "App_Data/SalesOrders");

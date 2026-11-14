@@ -82,6 +82,11 @@ public sealed record RolePermissionActionViewModel(
 
 public sealed class BrandingViewModel
 {
+    [Required(ErrorMessage = "請輸入訂購單 PDF 儲存路徑")]
+    [StringLength(1800)]
+    [Display(Name = "訂購單 PDF 儲存路徑")]
+    public string SalesOrderPdfDirectory { get; set; } = "App_Data/SalesOrders";
+
     [Required(ErrorMessage = "請輸入公司名稱")]
     [Display(Name = "公司名稱")]
     public string CompanyName { get; set; } = "";

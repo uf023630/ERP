@@ -18,11 +18,16 @@ public static class QuotationStatuses
 
 public static class QuotationTaxTypes
 {
+    public const string None = "None";
     public const string Inclusive = "Inclusive";
     public const string Exclusive = "Exclusive";
 
-    public static string GetLabel(string taxType) =>
-        taxType == Inclusive ? "含稅" : "稅外加";
+    public static string GetLabel(string taxType) => taxType switch
+    {
+        None => "不計稅",
+        Inclusive => "含稅",
+        _ => "稅外加"
+    };
 }
 
 public sealed class QuotationListViewModel
@@ -98,6 +103,9 @@ public sealed record QuotationDetailLine(
     string ItemSource,
     string? ProductCode,
     string ProductName,
+    string? Thickness,
+    string? Width,
+    string? Length,
     string? Specification,
     string? Unit,
     decimal Quantity,
@@ -168,6 +176,15 @@ public sealed class QuotationLineInputModel
     [StringLength(200)]
     public string ProductName { get; set; } = "";
 
+    [StringLength(50)]
+    public string? Thickness { get; set; }
+
+    [StringLength(50)]
+    public string? Width { get; set; }
+
+    [StringLength(50)]
+    public string? Length { get; set; }
+
     [StringLength(500)]
     public string? Specification { get; set; }
 
@@ -177,7 +194,8 @@ public sealed class QuotationLineInputModel
     [Range(typeof(decimal), "0.0001", "999999999", ErrorMessage = "數量必須至少為 0.0001")]
     public decimal Quantity { get; set; } = 1m;
 
-    [Range(typeof(decimal), "0", "999999999999", ErrorMessage = "單價不可小於 0")]
+    [Display(Name = "單價")]
+    [Range(typeof(decimal), "-999999999999", "999999999999", ErrorMessage = "單價必須介於 -999999999999 至 999999999999")]
     public decimal UnitPrice { get; set; }
 
     public decimal LineAmount { get; set; }
@@ -202,7 +220,10 @@ public sealed record QuotationProductOption(
     string ProductName,
     string? Specification,
     string? Unit,
-    decimal UnitPrice);
+    decimal UnitPrice,
+    string? Thickness,
+    string? Width,
+    string? Length);
 
 public sealed record QuotationConversionResult(
     long SalesOrderId,

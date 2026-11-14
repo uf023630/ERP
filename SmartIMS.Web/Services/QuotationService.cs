@@ -118,7 +118,7 @@ public sealed class QuotationService
                        COALESCE(q.CustomerTaxId, c.TaxId),
                        COALESCE(q.CustomerContactName, c.ContactName),
                        COALESCE(q.CustomerPhone, c.Phone),
-                       COALESCE(q.CustomerAddress, c.Address),
+                       COALESCE(q.CustomerDeliveryAddress, c.DeliveryAddress),
                        q.TaxType,
                        q.TaxRate,
                        q.SubTotal,
@@ -179,7 +179,7 @@ public sealed class QuotationService
                        Qty,
                        UnitPrice,
                        LineAmount,
-                       Remark
+                       Remark, Thickness, Width, Length
                 FROM dbo.SalesQuoteItem
                 WHERE SalesQuoteID = @SalesQuoteID
                 ORDER BY LineNumber;
@@ -195,6 +195,9 @@ public sealed class QuotationService
                     reader.GetString(2),
                     reader.IsDBNull(3) ? null : reader.GetString(3),
                     reader.GetString(4),
+                    reader.IsDBNull(11) ? null : reader.GetString(11),
+                    reader.IsDBNull(12) ? null : reader.GetString(12),
+                    reader.IsDBNull(13) ? null : reader.GetString(13),
                     reader.IsDBNull(5) ? null : reader.GetString(5),
                     reader.IsDBNull(6) ? null : reader.GetString(6),
                     reader.GetDecimal(7),
@@ -275,7 +278,7 @@ public sealed class QuotationService
                        Qty,
                        UnitPrice,
                        LineAmount,
-                       Remark
+                       Remark, Thickness, Width, Length
                 FROM dbo.SalesQuoteItem
                 WHERE SalesQuoteID = @SalesQuoteID
                 ORDER BY LineNumber;
@@ -292,6 +295,9 @@ public sealed class QuotationService
                     ItemSource = reader.GetString(2),
                     ProductCode = reader.IsDBNull(3) ? null : reader.GetString(3),
                     ProductName = reader.GetString(4),
+                    Thickness = reader.IsDBNull(11) ? null : reader.GetString(11),
+                    Width = reader.IsDBNull(12) ? null : reader.GetString(12),
+                    Length = reader.IsDBNull(13) ? null : reader.GetString(13),
                     Specification = reader.IsDBNull(5) ? null : reader.GetString(5),
                     Unit = reader.IsDBNull(6) ? null : reader.GetString(6),
                     Quantity = reader.GetDecimal(7),
@@ -315,12 +321,12 @@ public sealed class QuotationService
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT CustomerID, CustomerCode, CustomerName, TaxId, ContactName, Phone, Address, TaxType
+            SELECT CustomerID, CustomerCode, CustomerName, TaxId, ContactName, Phone, DeliveryAddress, TaxType
             FROM dbo.Customer
             WHERE IsActive = 1
             ORDER BY CustomerCode, CustomerName;
 
-            SELECT ProductID, ProductCode, ProductName, Specification, Unit, UnitPrice
+            SELECT ProductID, ProductCode, ProductName, Specification, Unit, UnitPrice, Thickness, Width, Length
             FROM dbo.Product
             WHERE IsActive = 1
             ORDER BY ProductCode, ProductName;
@@ -349,7 +355,10 @@ public sealed class QuotationService
                 reader.GetString(2),
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.GetDecimal(5)));
+                reader.GetDecimal(5),
+                reader.IsDBNull(6) ? null : reader.GetString(6),
+                reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8)));
         }
 
         model.Customers = customers;
@@ -358,6 +367,8 @@ public sealed class QuotationService
 
     public async Task<long> SaveAsync(QuotationEditViewModel model)
     {
+        if (model.TaxType == QuotationTaxTypes.None) model.TaxRate = 0m;
+        if (model.TaxType == QuotationTaxTypes.Exclusive) model.TaxRate = 5m;
         ValidateRequest(model);
 
         await using var connection = _connectionFactory.CreateConnection();
@@ -366,6 +377,16 @@ public sealed class QuotationService
 
         try
         {
+            if (model.TaxType == QuotationTaxTypes.Inclusive)
+            {
+                await using var legacyTax = connection.CreateCommand();
+                legacyTax.Transaction = transaction;
+                legacyTax.CommandText = "SELECT TaxRate FROM dbo.SalesQuote WITH (UPDLOCK, HOLDLOCK) WHERE SalesQuoteID = @Id AND TaxType = 'Inclusive';";
+                legacyTax.Parameters.AddWithValue("@Id", model.SalesQuoteId!.Value);
+                var storedRate = await legacyTax.ExecuteScalarAsync();
+                if (storedRate is null or DBNull) throw new InvalidOperationException("請選擇不計稅或稅外加。");
+                model.TaxRate = Convert.ToDecimal(storedRate);
+            }
             var customer = await GetCustomerAsync(connection, transaction, model.CustomerId!.Value)
                 ?? throw new InvalidOperationException("找不到選取的客戶，或該客戶已停用。");
 
@@ -391,6 +412,7 @@ public sealed class QuotationService
                         CustomerContactName = @CustomerContactName,
                         CustomerPhone = @CustomerPhone,
                         CustomerAddress = @CustomerAddress,
+                        CustomerDeliveryAddress = COALESCE(@CustomerAddress, N''),
                         QuoteDate = @QuoteDate,
                         ExpireDate = @ExpireDate,
                         TaxType = @TaxType,
@@ -425,7 +447,7 @@ public sealed class QuotationService
                 insert.CommandText = """
                     INSERT INTO dbo.SalesQuote (
                         QuoteNo, CustomerID, CustomerCode, CustomerName, CustomerTaxId,
-                        CustomerContactName, CustomerPhone, CustomerAddress,
+                        CustomerContactName, CustomerPhone, CustomerAddress, CustomerDeliveryAddress,
                         QuoteDate, ExpireDate, Status, TaxType, TaxRate,
                         SubTotal, TaxAmount, TotalAmount, IsCustomerSuppliedMaterial,
                         Remark, IsLocked, UpdatedAt
@@ -433,7 +455,7 @@ public sealed class QuotationService
                     OUTPUT inserted.SalesQuoteID
                     VALUES (
                         @QuoteNo, @CustomerID, @CustomerCode, @CustomerName, @CustomerTaxId,
-                        @CustomerContactName, @CustomerPhone, @CustomerAddress,
+                        @CustomerContactName, @CustomerPhone, @CustomerAddress, COALESCE(@CustomerAddress, N''),
                         @QuoteDate, @ExpireDate, 'Quoting', @TaxType, @TaxRate,
                         @SubTotal, @TaxAmount, @TotalAmount, @IsCustomerSuppliedMaterial,
                         @Remark, 0, SYSUTCDATETIME()
@@ -499,7 +521,7 @@ public sealed class QuotationService
                     SELECT q.CustomerID, q.QuoteDate, q.ExpireDate, q.SubTotal, q.TaxAmount,
                            q.TotalAmount, q.Remark, q.TaxType, q.TaxRate,
                            q.CustomerCode, q.CustomerName, q.CustomerTaxId,
-                           q.CustomerContactName, q.CustomerPhone, q.CustomerAddress,
+                           q.CustomerContactName, q.CustomerPhone, COALESCE(q.CustomerDeliveryAddress, c.DeliveryAddress),
                             c.PaymentTermDays, q.Status, q.IsCustomerSuppliedMaterial
                     FROM dbo.SalesQuote q WITH (UPDLOCK, HOLDLOCK)
                     INNER JOIN dbo.Customer c ON c.CustomerID = q.CustomerID
@@ -591,11 +613,11 @@ public sealed class QuotationService
                 command.CommandText = """
                     INSERT INTO dbo.SalesOrderItem (
                         SalesOrderID, LineNumber, ProductID, ItemSource,
-                        ProductCode, ProductName, Specification, Unit,
+                        ProductCode, ProductName, Specification, Unit, Thickness, Width, Length,
                         OrderedQty, ShippedQty, UnitPrice, TaxRate, Remark
                     )
                     SELECT @SalesOrderID, LineNumber, ProductID, ItemSource,
-                           ProductCode, ProductName, Specification, Unit,
+                           ProductCode, ProductName, Specification, Unit, Thickness, Width, Length,
                            Qty, 0, UnitPrice, TaxRate, Remark
                     FROM dbo.SalesQuoteItem
                     WHERE SalesQuoteID = @SalesQuoteID;
@@ -641,7 +663,8 @@ public sealed class QuotationService
             throw new InvalidOperationException("有效日期不可早於報價日期。");
         }
 
-        if (model.TaxType is not (QuotationTaxTypes.Inclusive or QuotationTaxTypes.Exclusive))
+        if (model.TaxType is not (QuotationTaxTypes.None or QuotationTaxTypes.Inclusive or QuotationTaxTypes.Exclusive) ||
+            (model.TaxType == QuotationTaxTypes.Inclusive && !model.SalesQuoteId.HasValue))
         {
             throw new InvalidOperationException("計稅方式不正確。");
         }
@@ -665,7 +688,7 @@ public sealed class QuotationService
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            SELECT CustomerCode, CustomerName, TaxId, ContactName, Phone, Address
+            SELECT CustomerCode, CustomerName, TaxId, ContactName, Phone, DeliveryAddress
             FROM dbo.Customer
             WHERE CustomerID = @CustomerID
               AND IsActive = 1;
@@ -701,11 +724,6 @@ public sealed class QuotationService
         if (input.Quantity != decimal.Round(input.Quantity, 4))
         {
             throw new InvalidOperationException("商品數量最多只能有四位小數。");
-        }
-
-        if (input.UnitPrice < 0)
-        {
-            throw new InvalidOperationException("商品單價不可小於 0。");
         }
 
         if (input.UnitPrice != decimal.Round(input.UnitPrice, 4))
@@ -752,6 +770,9 @@ public sealed class QuotationService
             input.ProductId.HasValue ? "Product" : "Manual",
             FirstNonEmpty(input.ProductCode, defaultCode),
             productName,
+            NullIfWhiteSpace(input.Thickness),
+            NullIfWhiteSpace(input.Width),
+            NullIfWhiteSpace(input.Length),
             FirstNonEmpty(input.Specification, defaultSpecification),
             FirstNonEmpty(input.Unit, defaultUnit),
             input.Quantity,
@@ -814,12 +835,12 @@ public sealed class QuotationService
         command.CommandText = """
             INSERT INTO dbo.SalesQuoteItem (
                 SalesQuoteID, LineNumber, ProductID, ItemSource,
-                ProductCode, ProductName, Specification, Unit,
+                ProductCode, ProductName, Specification, Unit, Thickness, Width, Length,
                 Qty, UnitPrice, TaxRate, Remark
             )
             VALUES (
                 @SalesQuoteID, @LineNumber, @ProductID, @ItemSource,
-                @ProductCode, @ProductName, @Specification, @Unit,
+                @ProductCode, @ProductName, @Specification, @Unit, @Thickness, @Width, @Length,
                 @Qty, @UnitPrice, @TaxRate, @Remark
             );
             """;
@@ -829,6 +850,9 @@ public sealed class QuotationService
         command.Parameters.AddWithValue("@ItemSource", line.ItemSource);
         command.Parameters.AddWithValue("@ProductCode", DbValue(line.ProductCode));
         command.Parameters.AddWithValue("@ProductName", line.ProductName);
+        command.Parameters.AddWithValue("@Thickness", DbValue(line.Thickness));
+        command.Parameters.AddWithValue("@Width", DbValue(line.Width));
+        command.Parameters.AddWithValue("@Length", DbValue(line.Length));
         command.Parameters.AddWithValue("@Specification", DbValue(line.Specification));
         command.Parameters.AddWithValue("@Unit", DbValue(line.Unit));
         command.Parameters.AddWithValue("@Qty", line.Quantity);
@@ -891,6 +915,9 @@ public sealed class QuotationService
         string ItemSource,
         string? ProductCode,
         string ProductName,
+        string? Thickness,
+        string? Width,
+        string? Length,
         string? Specification,
         string? Unit,
         decimal Quantity,

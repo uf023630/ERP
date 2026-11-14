@@ -15,6 +15,8 @@ builder.Services.AddScoped<ListViewSettingsService>();
 builder.Services.AddScoped<ProductMaterialService>();
 builder.Services.AddScoped<ProductService>();
 builder.Services.AddScoped<QuotationService>();
+builder.Services.AddScoped<SalesOrderService>();
+builder.Services.AddScoped<OrderPdfStorage>();
 builder.Services.AddScoped<CustomerService>();
 
 builder.Services
@@ -30,7 +32,21 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    var messages = options.ModelBindingMessageProvider;
+    messages.SetAttemptedValueIsInvalidAccessor((value, field) => $"「{field}」的輸入格式不正確。");
+    messages.SetNonPropertyAttemptedValueIsInvalidAccessor(value => "輸入格式不正確。");
+    messages.SetUnknownValueIsInvalidAccessor(field => $"「{field}」的輸入值無效。");
+    messages.SetNonPropertyUnknownValueIsInvalidAccessor(() => "輸入值無效。");
+    messages.SetValueMustNotBeNullAccessor(value => "此欄位不可空白。");
+    messages.SetValueIsInvalidAccessor(value => "輸入值無效。");
+    messages.SetValueMustBeANumberAccessor(field => $"「{field}」必須是數值。");
+    messages.SetNonPropertyValueMustBeANumberAccessor(() => "請輸入有效的數值。");
+    messages.SetMissingBindRequiredValueAccessor(field => $"請輸入「{field}」。");
+    messages.SetMissingKeyOrValueAccessor(() => "請提供完整的欄位名稱與內容。");
+    messages.SetMissingRequestBodyRequiredValueAccessor(() => "請提供要儲存的資料。");
+});
 
 var app = builder.Build();
 

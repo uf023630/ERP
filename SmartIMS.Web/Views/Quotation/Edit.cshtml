@@ -9,6 +9,7 @@
             : "PAGE_SALES_QUOTATION_EDIT");
     var canConvert = Model.SalesQuoteId.HasValue &&
         Model.IsEditable &&
+        User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_ORDER_CREATE") &&
         User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_QUOTATION_EDIT");
     var canVoid = Model.SalesQuoteId.HasValue &&
         Model.IsEditable &&
@@ -26,6 +27,24 @@
     ViewData["Title"] = isNew ? "新增報價單" : $"報價單 {Model.QuoteNo}";
     ViewData["ToolbarPageCode"] = "PAGE_SALES_QUOTATION";
     ViewData["ToolbarActions"] = "create,delete,copy,edit,cancel,find,print,first,previous,next,last";
+    var fieldNames = new Dictionary<string, string>
+    {
+        ["ProductName"] = "商品名稱", ["ProductCode"] = "商品編號", ["Quantity"] = "數量", ["UnitPrice"] = "單價",
+        ["Thickness"] = "厚度", ["Width"] = "寬度", ["Length"] = "長度", ["Specification"] = "規格",
+        ["Unit"] = "單位", ["Remark"] = "備註", ["CustomerId"] = "客戶", ["TaxRate"] = "稅率",
+        ["TaxType"] = "稅別", ["QuoteDate"] = "報價日期", ["ExpireDate"] = "有效日期", ["Lines"] = "商品明細"
+    };
+    string ErrorFieldLabel(string key)
+    {
+        if (string.IsNullOrEmpty(key)) return "";
+        var field = key.Split('.').Last();
+        var label = fieldNames.GetValueOrDefault(field, "輸入欄位");
+        var match = System.Text.RegularExpressions.Regex.Match(key, @"Lines\[(\d+)\]");
+        return match.Success ? $"第 {int.Parse(match.Groups[1].Value) + 1} 項商品的{label}" : label;
+    }
+    var serverValidationErrors = ViewData.ModelState.SelectMany(entry => entry.Value!.Errors.Select(error =>
+        (string.IsNullOrEmpty(entry.Key) ? "" : ErrorFieldLabel(entry.Key) + "：") +
+        (string.IsNullOrWhiteSpace(error.ErrorMessage) ? "輸入資料格式不正確。" : error.ErrorMessage))).Distinct().ToArray();
 }
 
 <div class="page-title-row">
@@ -41,6 +60,19 @@
     </div>
 </div>
 
+<style>
+    .quotation-rounded-input { position: relative; }
+    .quotation-rounded-input > input:not(:focus) { color: transparent; }
+    .quotation-rounded-input > .quotation-rounded-display { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0 .5rem; pointer-events: none; color: #212529; overflow: hidden; }
+    .quotation-rounded-input:focus-within > .quotation-rounded-display { display: none; }
+    .quotation-lines .quotation-dimension { width: calc(7ch + 1rem); min-width: calc(7ch + 1rem); max-width: calc(7ch + 1rem); }
+    .quotation-lines .quotation-dimension .form-control { min-width: 0; padding-left: .2rem; padding-right: .2rem; font-variant-numeric: tabular-nums; }
+    .quotation-unit-picker { position: relative; min-width: 75px; }
+    .quotation-lines .quotation-unit-picker > input { position: absolute; z-index: 1; top: 1px; left: 1px; width: calc(100% - 2rem); max-width: calc(100% - 2rem); height: calc(100% - 2px); min-width: 0; min-height: 0; box-sizing: border-box; border: 0; border-radius: .2rem 0 0 .2rem; box-shadow: none; }
+    .quotation-unit-picker > select { width: 100%; cursor: pointer; }
+    .quotation-unit-picker:focus-within > select { border-color: #86b7fe; box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .25); }
+    .quotation-unit-picker > select option { color: #212529; }
+</style>
 <form asp-action="Save"
       method="post"
       class="quotation-edit-page"
@@ -54,7 +86,14 @@
     <input asp-for="TaxAmount" type="hidden" data-tax-input />
     <input asp-for="TotalAmount" type="hidden" data-total-input />
 
-    <div asp-validation-summary="All" class="text-danger small mb-2"></div>
+    <div data-valmsg-summary="true" class="text-danger small mb-2 @(serverValidationErrors.Length > 0 ? "validation-summary-errors" : "validation-summary-valid")">
+        <ul>
+            @foreach (var error in serverValidationErrors)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    </div>
     <span asp-validation-for="Lines" class="text-danger small"></span>
 
     <div class="win-panel mb-2">
@@ -116,14 +155,18 @@
                 <input class="form-control form-control-sm" value="@selectedCustomer?.Phone" readonly data-customer-phone />
             </div>
             <div class="col-md-6">
-                <label class="form-label">地址</label>
+                <label class="form-label">送貨地址</label>
                 <input class="form-control form-control-sm" value="@selectedCustomer?.Address" readonly data-customer-address />
             </div>
             <div class="col-md-2">
                 <label asp-for="TaxType" class="form-label">計稅方式</label>
                 <select asp-for="TaxType" class="form-select form-select-sm" data-tax-type>
+                    <option value="@QuotationTaxTypes.None">不計稅</option>
                     <option value="@QuotationTaxTypes.Exclusive">稅外加</option>
-                    <option value="@QuotationTaxTypes.Inclusive">含稅</option>
+                    @if (Model.SalesQuoteId.HasValue && Model.TaxType == QuotationTaxTypes.Inclusive)
+                    {
+                        <option value="@QuotationTaxTypes.Inclusive">含稅（舊報價單）</option>
+                    }
                 </select>
             </div>
             <div class="col-md-2">
@@ -134,6 +177,7 @@
                        min="0"
                        max="100"
                        step="0.01"
+                       readonly
                        data-tax-rate />
             </div>
             <div class="col-md-2 quotation-customer-material-field">
@@ -159,6 +203,9 @@
                         <th style="width: 42px;">項次</th>
                         <th style="width: 165px;">商品編號</th>
                         <th style="min-width: 180px;">商品名稱</th>
+                        <th class="quotation-dimension">厚度</th>
+                        <th class="quotation-dimension">寬度</th>
+                        <th class="quotation-dimension">長度</th>
                         <th style="min-width: 170px;">規格</th>
                         <th style="width: 80px;">單位</th>
                         <th style="width: 105px;">數量</th>
@@ -200,10 +247,13 @@
                                 </div>
                             </td>
                             <td><input name="Lines[@index].ProductName" value="@line.ProductName" class="form-control form-control-sm" required data-field="ProductName" /></td>
+                            <td class="quotation-dimension"><input name="Lines[@index].Thickness" value="@line.Thickness" maxlength="50" class="form-control form-control-sm" data-field="Thickness" /></td>
+                            <td class="quotation-dimension"><input name="Lines[@index].Width" value="@line.Width" maxlength="50" class="form-control form-control-sm" data-field="Width" /></td>
+                            <td class="quotation-dimension"><input name="Lines[@index].Length" value="@line.Length" maxlength="50" class="form-control form-control-sm" data-field="Length" /></td>
                             <td><input name="Lines[@index].Specification" value="@line.Specification" class="form-control form-control-sm" data-field="Specification" /></td>
-                            <td><input name="Lines[@index].Unit" value="@line.Unit" class="form-control form-control-sm" data-field="Unit" /></td>
-                            <td><input name="Lines[@index].Quantity" value="@line.Quantity.ToString("0.0###", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end quotation-quantity" type="number" min="0.0001" step="0.0001" required data-field="Quantity" /></td>
-                            <td><input name="Lines[@index].UnitPrice" value="@line.UnitPrice.ToString("0.0###", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end quotation-unit-price" type="number" min="0" step="0.0001" required data-field="UnitPrice" /></td>
+                            <td><input name="Lines[@index].Unit" value="@line.Unit" class="form-control form-control-sm" list="quotation-unit-suggestions" maxlength="20" autocomplete="off" aria-label="單位" data-field="Unit" /></td>
+                            <td><input name="Lines[@index].Quantity" value="@line.Quantity.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end quotation-quantity" type="number" min="0.0001" step="0.0001" required data-field="Quantity" /></td>
+                            <td><input name="Lines[@index].UnitPrice" value="@line.UnitPrice.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture)" class="form-control form-control-sm text-end quotation-unit-price" type="number" min="-999999999999" max="999999999999" step="0.0001" required data-field="UnitPrice" /></td>
                             <td>
                                 <input name="Lines[@index].LineAmount"
                                        value="@line.LineAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)"
@@ -238,6 +288,12 @@
         }
     </div>
 
+    <datalist id="quotation-unit-suggestions">
+        <option value="片"></option>
+        <option value="kg"></option>
+        <option value="批"></option>
+        <option value="式"></option>
+    </datalist>
     <datalist id="quotation-product-suggestions">
         @foreach (var product in Model.Products)
         {
@@ -276,7 +332,7 @@
                                         <th style="width: 110px;">統一編號</th>
                                         <th style="width: 120px;">聯絡人</th>
                                         <th style="width: 130px;">電話</th>
-                                        <th style="min-width: 250px;">地址</th>
+                                        <th style="min-width: 250px;">送貨地址</th>
                                     </tr>
                                 </thead>
                                 <tbody data-customer-results>
@@ -356,6 +412,9 @@
                                             data-product-id="@product.ProductId"
                                             data-code="@product.ProductCode"
                                             data-name="@product.ProductName"
+                                            data-thickness="@product.Thickness"
+                                            data-width="@product.Width"
+                                            data-length="@product.Length"
                                             data-specification="@product.Specification"
                                             data-unit="@product.Unit"
                                             data-price="@product.UnitPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)">
@@ -395,7 +454,7 @@
                             formaction="@Url.Action("Convert", "Quotation", new { id = Model.SalesQuoteId })"
                             formnovalidate
                             onclick="return confirm('轉成銷售單後，報價內容將鎖定。確定繼續嗎？');">
-                        轉銷售單
+                        轉訂購單
                     </button>
                 }
                 @if (canVoid)
@@ -441,7 +500,7 @@
             var selectedProductOption = null;
             var customerIdInput = root.querySelector("[data-selected-customer-id]");
             var customerDisplay = root.querySelector("[data-customer-display]");
-            var serverErrors = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(ViewData.ModelState.Values.SelectMany(state => state.Errors).Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage) ? "輸入資料格式不正確。" : error.ErrorMessage).Distinct().ToArray()));
+            var serverErrors = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(serverValidationErrors));
             if (serverErrors.length) {
                 window.alert("報價單未儲存，請修正以下問題：\n" + serverErrors.join("\n"));
             }
@@ -462,8 +521,8 @@
                 var label = row ? "第 " + row.querySelector("[data-line-number]").textContent.trim() + " 項商品的" : "";
                 var names = { ProductName: "商品名稱", Quantity: "數量", UnitPrice: "單價" };
                 label += names[field.dataset.field] || field.labels?.[0]?.textContent.trim() || "欄位";
-                var message = field.validity.stepMismatch ? "最多可輸入四位小數。" : field.validationMessage;
-                showInvalidAlert("請檢查" + label + "。" + message);
+                var message = field.validity.stepMismatch ? label + "：最多可輸入四位小數。" : field.validationMessage;
+                showInvalidAlert(message);
             }, true);
 
             root.addEventListener("submit", function (event) {
@@ -496,18 +555,40 @@
             var subtotalDisplay = root.querySelector("[data-subtotal-display]");
             var taxDisplay = root.querySelector("[data-tax-display]");
             var totalDisplay = root.querySelector("[data-total-display]");
-            var taxLabel = root.querySelector("[data-tax-label]");
 
             function roundMoney(value) {
-                return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+                return roundAmount(value, 2);
+            }
+
+            function roundAmount(value, digits) {
+                var number = Number(value);
+                var factor = Math.pow(10, digits);
+                return Math.sign(number) * Math.round((Math.abs(number) + Number.EPSILON) * factor) / factor;
+            }
+
+            function prepareRoundedInput(input) {
+                if (input.parentElement.classList.contains("quotation-rounded-input")) return;
+                var wrapper = document.createElement("div");
+                wrapper.className = "quotation-rounded-input";
+                input.parentNode.insertBefore(wrapper, input);
+                wrapper.appendChild(input);
+                var display = document.createElement("span");
+                display.className = "quotation-rounded-display";
+                display.setAttribute("aria-hidden", "true");
+                wrapper.appendChild(display);
+            }
+
+            function updateRoundedInput(input) {
+                var display = input.parentElement.querySelector(".quotation-rounded-display");
+                if (display) display.textContent = input.value === "" ? "" : String(roundAmount(input.value, 0));
             }
 
             function formatDecimalInput(input) {
                 var value = input.value.trim();
-                if (!/^\d+(?:\.\d{0,4})?$/.test(value)) return;
+                if (!/^-?\d+(?:\.\d{0,4})?$/.test(value)) return;
                 var parts = value.split(".");
                 var fraction = (parts[1] || "").replace(/0+$/, "");
-                input.value = parts[0] + "." + (fraction || "0");
+                input.value = parts[0] + (fraction ? "." + fraction : "");
             }
 
             function formatMoney(value) {
@@ -569,8 +650,9 @@
                 root.querySelector("[data-customer-contact]").value = option.dataset.contact || "";
                 root.querySelector("[data-customer-phone]").value = option.dataset.phone || "";
                 root.querySelector("[data-customer-address]").value = option.dataset.address || "";
-                if (option.dataset.taxType === "@QuotationTaxTypes.Inclusive" || option.dataset.taxType === "@QuotationTaxTypes.Exclusive") {
+                if (option.dataset.taxType === "@QuotationTaxTypes.None" || option.dataset.taxType === "@QuotationTaxTypes.Exclusive") {
                     taxType.value = option.dataset.taxType;
+                    updateTaxRate();
                     calculate();
                 }
             }
@@ -591,6 +673,12 @@
                 input.value = value == null ? "" : value;
                 input.dataset.field = field;
                 input.className = "form-control form-control-sm" + (extraClass ? " " + extraClass : "");
+                if (field === "Unit") {
+                    input.setAttribute("list", "quotation-unit-suggestions");
+                    input.setAttribute("aria-label", "單位");
+                    input.maxLength = 20;
+                    input.autocomplete = "off";
+                }
                 if (field === "Quantity") {
                     input.classList.add("quotation-quantity");
                     input.min = "0.0001";
@@ -599,20 +687,59 @@
                 }
                 if (field === "UnitPrice") {
                     input.classList.add("quotation-unit-price");
-                    input.min = "0";
+                    input.min = "-999999999999";
+                    input.max = "999999999999";
                     input.step = "0.0001";
                     input.required = true;
                 }
                 if (field === "ProductName") {
                     input.required = true;
                 }
+                if (["Thickness", "Width", "Length"].includes(field)) input.maxLength = 50;
                 return input;
             }
 
             function appendInputCell(row, field, type, value, extraClass) {
                 var cell = document.createElement("td");
-                cell.appendChild(createInput(field, type, value, extraClass));
+                if (["Thickness", "Width", "Length"].includes(field)) cell.className = "quotation-dimension";
+                var input = createInput(field, type, value, extraClass);
+                cell.appendChild(input);
+                if (field === "Unit") prepareUnitPicker(input);
                 row.appendChild(cell);
+            }
+
+            function prepareUnitPicker(input) {
+                if (input.parentElement.classList.contains("quotation-unit-picker")) return;
+                input.removeAttribute("list");
+                var wrapper = document.createElement("div");
+                wrapper.className = "quotation-unit-picker";
+                input.parentNode.insertBefore(wrapper, input);
+                wrapper.appendChild(input);
+                var select = document.createElement("select");
+                select.className = "form-select form-select-sm";
+                select.setAttribute("aria-label", "選擇單位");
+                select.title = "選擇單位（也可直接輸入）";
+                select.disabled = !editable;
+                var placeholder = document.createElement("option");
+                placeholder.value = "";
+                placeholder.textContent = "";
+                placeholder.hidden = true;
+                select.appendChild(placeholder);
+                root.querySelectorAll("#quotation-unit-suggestions option").forEach(function (option) {
+                    var choice = document.createElement("option");
+                    choice.value = option.value;
+                    choice.textContent = option.value;
+                    select.appendChild(choice);
+                });
+                select.addEventListener("change", function () {
+                    if (!select.value) return;
+                    input.value = select.value;
+                    select.value = "";
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                    input.dispatchEvent(new Event("change", { bubbles: true }));
+                    input.focus();
+                });
+                wrapper.appendChild(select);
             }
 
             function addLine(data) {
@@ -655,6 +782,9 @@
                 row.appendChild(productCodeCell);
 
                 appendInputCell(row, "ProductName", "text", data.productName || "");
+                appendInputCell(row, "Thickness", "text", data.thickness || "");
+                appendInputCell(row, "Width", "text", data.width || "");
+                appendInputCell(row, "Length", "text", data.length || "");
                 appendInputCell(row, "Specification", "text", data.specification || "");
                 appendInputCell(row, "Unit", "text", data.unit || "");
                 appendInputCell(row, "Quantity", "number", data.quantity || 1, "text-end");
@@ -681,13 +811,14 @@
 
                 body.appendChild(row);
                 row.querySelectorAll('[data-field="Quantity"], [data-field="UnitPrice"]').forEach(formatDecimalInput);
+                row.querySelectorAll('[data-field="Quantity"], [data-field="UnitPrice"]').forEach(prepareRoundedInput);
                 renumberLines();
                 calculate();
                 row.querySelector('[data-field="ProductCode"]').focus();
             }
 
             function clearLine(row) {
-                ["SalesQuoteItemId", "ProductId", "ProductCode", "ProductName", "Specification", "Unit", "LineAmount"].forEach(function (field) {
+                ["SalesQuoteItemId", "ProductId", "ProductCode", "ProductName", "Thickness", "Width", "Length", "Specification", "Unit", "LineAmount"].forEach(function (field) {
                     row.querySelector('[data-field="' + field + '"]').value = "";
                 });
                 row.querySelector('[data-field="ItemSource"]').value = "Manual";
@@ -744,6 +875,9 @@
                 row.querySelector('[data-field="ItemSource"]').value = "Product";
                 row.querySelector('[data-field="ProductCode"]').value = option.dataset.code || "";
                 row.querySelector('[data-field="ProductName"]').value = option.dataset.name || "";
+                row.querySelector('[data-field="Thickness"]').value = option.dataset.thickness || "";
+                row.querySelector('[data-field="Width"]').value = option.dataset.width || "";
+                row.querySelector('[data-field="Length"]').value = option.dataset.length || "";
                 row.querySelector('[data-field="Specification"]').value = option.dataset.specification || "";
                 row.querySelector('[data-field="Unit"]').value = option.dataset.unit || "";
                 row.querySelector('[data-field="UnitPrice"]').value = option.dataset.price || "0";
@@ -770,13 +904,20 @@
                 });
             }
 
+            function updateTaxRate() {
+                if (taxType.value === "@QuotationTaxTypes.None") taxRate.value = "0";
+                if (taxType.value === "@QuotationTaxTypes.Exclusive") taxRate.value = "5";
+            }
+
             function calculate() {
                 var grossLineTotal = 0;
                 lineRows().forEach(function (row) {
                     var quantity = parseFloat(row.querySelector('[data-field="Quantity"]').value) || 0;
                     var price = parseFloat(row.querySelector('[data-field="UnitPrice"]').value) || 0;
                     var amount = roundMoney(quantity * price);
-                    row.querySelector("[data-line-amount]").value = amount.toFixed(2);
+                    updateRoundedInput(row.querySelector('[data-field="Quantity"]'));
+                    updateRoundedInput(row.querySelector('[data-field="UnitPrice"]'));
+                    row.querySelector("[data-line-amount]").value = String(Math.round(quantity * price));
                     grossLineTotal += amount;
                 });
 
@@ -789,12 +930,10 @@
                     total = grossLineTotal;
                     tax = rate === 0 ? 0 : roundMoney(total * rate / (100 + rate));
                     subtotal = roundMoney(total - tax);
-                    taxLabel.textContent = "內含稅額";
                 } else {
-                    subtotal = Math.round(grossLineTotal);
-                    tax = Math.round(subtotal * rate / 100 + Number.EPSILON);
+                    subtotal = roundAmount(grossLineTotal, 0);
+                    tax = roundAmount(subtotal * rate / 100, 0);
                     total = subtotal + tax;
-                    taxLabel.textContent = "外加稅額";
                 }
 
                 subtotalInput.value = subtotal.toFixed(2);
@@ -882,11 +1021,11 @@
                         if (previous && previous.dataset.code.toLowerCase() !== code) {
                             linked.value = "";
                             row.querySelector('[data-field="ItemSource"]').value = "Manual";
-                            [["ProductName", "name"], ["Specification", "specification"], ["Unit", "unit"], ["UnitPrice", "price"]].forEach(function (pair) {
+                            [["ProductName", "name"], ["Thickness", "thickness"], ["Width", "width"], ["Length", "length"], ["Specification", "specification"], ["Unit", "unit"], ["UnitPrice", "price"]].forEach(function (pair) {
                                 var input = row.querySelector('[data-field="' + pair[0] + '"]');
                                 var original = previous.dataset[pair[1]] || "";
                                 if (input.value === original || (pair[0] === "UnitPrice" && Number(input.value) === Number(original))) {
-                                    input.value = pair[0] === "UnitPrice" ? "0.0" : "";
+                                    input.value = pair[0] === "UnitPrice" ? "0" : "";
                                 }
                             });
                             calculate();
@@ -905,8 +1044,7 @@
                     }
                 });
 
-                taxType.addEventListener("change", calculate);
-                taxRate.addEventListener("input", calculate);
+                taxType.addEventListener("change", function () { updateTaxRate(); calculate(); });
 
                 productOptions().forEach(function (option) {
                     option.addEventListener("click", function () {
@@ -1005,7 +1143,10 @@
             document.querySelector(".content-frame").dataset.toolbarDisabledActions =
                 disabledToolbarActions.join(",");
 
+            body.querySelectorAll('[data-field="Unit"]').forEach(prepareUnitPicker);
+            body.querySelectorAll('[data-field="Quantity"], [data-field="UnitPrice"]').forEach(prepareRoundedInput);
             renumberLines();
+            updateTaxRate();
             calculate();
         })();
     </script>

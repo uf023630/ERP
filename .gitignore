@@ -1,2 +1,23 @@
 /OLD/
 /.playwright-mcp/
+
+# Local build, deployment and runtime data
+**/bin/
+**/obj/
+/.*-release/
+/.*-build*/
+/.iis-backups/
+/.security-fix-release/
+/IIS-Publish/
+/IIS-Source/
+/Site/
+/SmartIMS.Web/App_Data/
+/SmartIMS.Web/wwwroot/uploads/
+/*.dll
+/.*.log
+/.*.result
+/.*-path.txt
+/.iis-*.ps1
+/.deploy-*.ps1
+/.sales-order-smoke.py
+/.sales-order-*.png

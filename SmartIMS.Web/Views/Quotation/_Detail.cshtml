@@ -4,6 +4,7 @@
 @{
     var isQuoting = Model.Status == QuotationStatuses.Quoting;
     var canEdit = isQuoting && User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_QUOTATION_EDIT");
+    var canConvert = canEdit && User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_ORDER_CREATE");
     var canVoid = isQuoting && User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_QUOTATION_DELETE");
 }
 
@@ -27,7 +28,7 @@
         <a class="btn btn-sm btn-outline-secondary"
            asp-action="Edit"
            asp-route-id="@Model.SalesQuoteId">@(canEdit ? "修改" : "完整檢視")</a>
-        @if (canEdit)
+        @if (canConvert)
         {
             <form asp-action="Convert"
                   method="post"
@@ -35,7 +36,7 @@
                   onsubmit="return confirm('轉成銷售單後，報價內容將鎖定。確定繼續嗎？');">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@Model.SalesQuoteId" />
-                <button type="submit" class="btn btn-sm btn-success">轉銷售單</button>
+                <button type="submit" class="btn btn-sm btn-success">轉訂購單</button>
             </form>
         }
         @if (canVoid)
@@ -61,30 +62,35 @@
     <div><span>統一編號</span><strong>@(Model.CustomerTaxId ?? "—")</strong></div>
     <div><span>聯絡人</span><strong>@(Model.CustomerContactName ?? "—")</strong></div>
     <div><span>電話</span><strong>@(Model.CustomerPhone ?? "—")</strong></div>
-    <div class="quotation-detail-address"><span>地址</span><strong>@(Model.CustomerAddress ?? "—")</strong></div>
+    <div class="quotation-detail-address"><span>送貨地址</span><strong>@(string.IsNullOrWhiteSpace(Model.CustomerAddress) ? "—" : Model.CustomerAddress)</strong></div>
 </div>
 
+<style>
+    .quotation-detail-lines .quotation-dimension { width: calc(7ch + 1rem); min-width: calc(7ch + 1rem); max-width: calc(7ch + 1rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+</style>
 <div class="quotation-detail-lines">
     <div class="table-responsive">
         <table class="table table-sm table-bordered win-table mb-0">
             <thead>
                 <tr>
-                    <th style="width: 48px;">項次</th>
-                    <th style="width: 72px;">來源</th>
-                    <th style="width: 120px;">商品編號</th>
-                    <th>商品名稱</th>
-                    <th>規格</th>
-                    <th style="width: 70px;">單位</th>
-                    <th class="text-end" style="width: 100px;">數量</th>
-                    <th class="text-end" style="width: 115px;">單價</th>
-                    <th class="text-end" style="width: 125px;">小計</th>
+                    <th style="width: 42px;">項次</th>
+                    <th style="width: 165px;">商品編號</th>
+                    <th style="min-width: 180px;">商品名稱</th>
+                    <th class="quotation-dimension">厚度</th>
+                    <th class="quotation-dimension">寬度</th>
+                    <th class="quotation-dimension">長度</th>
+                    <th style="min-width: 170px;">規格</th>
+                    <th style="width: 80px;">單位</th>
+                    <th class="text-end" style="width: 105px;">數量</th>
+                    <th class="text-end" style="width: 125px;">單價</th>
+                    <th class="text-end" style="width: 135px;">小計</th>
                 </tr>
             </thead>
             <tbody>
                 @if (Model.Lines.Count == 0)
                 {
                     <tr>
-                        <td colspan="9" class="text-center text-muted py-3">此報價單沒有商品明細</td>
+                        <td colspan="11" class="text-center text-muted py-3">此報價單沒有商品明細</td>
                     </tr>
                 }
                 else
@@ -93,18 +99,16 @@
                     {
                         <tr>
                             <td class="text-center">@line.LineNumber</td>
-                            <td>
-                                <span class="quotation-item-source">
-                                    @(line.ProductId.HasValue ? "商品" : "自訂")
-                                </span>
-                            </td>
                             <td>@line.ProductCode</td>
                             <td>@line.ProductName</td>
+                            <td class="quotation-dimension" title="@line.Thickness">@line.Thickness</td>
+                            <td class="quotation-dimension" title="@line.Width">@line.Width</td>
+                            <td class="quotation-dimension" title="@line.Length">@line.Length</td>
                             <td>@line.Specification</td>
                             <td>@line.Unit</td>
-                            <td class="text-end">@line.Quantity.ToString("#,##0.0###")</td>
-                            <td class="text-end">@line.UnitPrice.ToString("#,##0.0###")</td>
-                            <td class="text-end fw-semibold">@line.LineAmount.ToString("N2")</td>
+                            <td class="text-end">@Math.Round(line.Quantity, 0, MidpointRounding.AwayFromZero).ToString("0", System.Globalization.CultureInfo.InvariantCulture)</td>
+                            <td class="text-end">@Math.Round(line.UnitPrice, 0, MidpointRounding.AwayFromZero).ToString("0", System.Globalization.CultureInfo.InvariantCulture)</td>
+                            <td class="text-end fw-semibold">@Math.Round(line.LineAmount, 0, MidpointRounding.AwayFromZero).ToString("0", System.Globalization.CultureInfo.InvariantCulture)</td>
                         </tr>
                     }
                 }
@@ -119,11 +123,11 @@
         <div>@(string.IsNullOrWhiteSpace(Model.Remark) ? "—" : Model.Remark)</div>
     </div>
     <div class="quotation-summary quotation-detail-summary">
-        <div><span>未稅小計</span><strong>@Model.Subtotal.ToString("N2")</strong></div>
+        <div><span>未稅小計</span><strong>@Math.Round(Model.Subtotal, 0, MidpointRounding.AwayFromZero).ToString("N0")</strong></div>
         <div>
-            <span>@(Model.TaxType == QuotationTaxTypes.Inclusive ? "內含稅額" : "外加稅額")</span>
-            <strong>@Model.TaxAmount.ToString("N2")</strong>
+            <span>稅額</span>
+            <strong>@Math.Round(Model.TaxAmount, 0, MidpointRounding.AwayFromZero).ToString("N0")</strong>
         </div>
-        <div class="quotation-total"><span>總計</span><strong>@Model.TotalAmount.ToString("N2")</strong></div>
+        <div class="quotation-total"><span>總計</span><strong>@Math.Round(Model.TotalAmount, 0, MidpointRounding.AwayFromZero).ToString("N0")</strong></div>
     </div>
 </div>

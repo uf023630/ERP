@@ -20,7 +20,7 @@ public sealed class PermissionService
         [
             new("使用者管理", "Admin", "Users", "PAGE_ADMIN_USERS"),
             new("權限設定", "Admin", "Permissions", "PAGE_ADMIN_PERMISSIONS"),
-            new("公司形象", "Admin", "Branding", "PAGE_ADMIN_BRANDING")
+            new("系統參數", "Admin", "Branding", "PAGE_ADMIN_BRANDING")
         ]),
         new("基礎資料",
         [
@@ -32,7 +32,8 @@ public sealed class PermissionService
         ]),
         new("銷售管理",
         [
-            new("報價單", "Quotation", "Index", "PAGE_SALES_QUOTATION")
+            new("報價單", "Quotation", "Index", "PAGE_SALES_QUOTATION"),
+            new("訂購單", "SalesOrder", "Index", "PAGE_SALES_ORDER")
         ])
     ];
 

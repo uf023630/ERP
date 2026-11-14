@@ -31,9 +31,13 @@ public sealed class CustomerItem
     [StringLength(20)]
     public string ZipCode { get; set; } = "";
     [StringLength(500)]
+    public string CompanyAddress { get; set; } = "";
+    [StringLength(500)]
     public string DeliveryAddress { get; set; } = "";
     [StringLength(20)]
     public string PaymentMethod { get; set; } = "月結";
+    [StringLength(100)]
+    public string BankName { get; set; } = "";
     [StringLength(100)]
     public string BankAccount { get; set; } = "";
     [StringLength(2000)]

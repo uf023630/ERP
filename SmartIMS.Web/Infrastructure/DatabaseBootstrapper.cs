@@ -24,9 +24,24 @@ public sealed class DatabaseBootstrapper
         await ExecuteAsync(connection, SchemaSql);
         await ExecuteAsync(connection, ProductSchemaSql);
         await ExecuteAsync(connection, CustomerNumberingSql);
+        await ExecuteAsync(connection, SalesOrderSchemaSql);
         await ExecuteAsync(connection, SeedSql);
         await EnsureDefaultAdminPasswordAsync(connection);
     }
+
+    private const string SalesOrderSchemaSql = """
+
+IF COL_LENGTH('dbo.SalesOrder', 'PdfFileName') IS NULL
+    ALTER TABLE dbo.SalesOrder ADD PdfFileName NVARCHAR(255) NULL;
+IF COL_LENGTH('dbo.SalesOrder', 'PdfStoragePath') IS NULL
+    ALTER TABLE dbo.SalesOrder ADD PdfStoragePath NVARCHAR(2048) NULL;
+IF COL_LENGTH('dbo.SalesOrder', 'UpdatedAt') IS NULL
+    ALTER TABLE dbo.SalesOrder ADD UpdatedAt DATETIME2(0) NULL;
+IF COL_LENGTH('dbo.SalesOrder', 'VoidReason') IS NULL
+    ALTER TABLE dbo.SalesOrder ADD VoidReason NVARCHAR(500) NULL;
+IF COL_LENGTH('dbo.SalesOrder', 'VoidedAt') IS NULL
+    ALTER TABLE dbo.SalesOrder ADD VoidedAt DATETIME2(0) NULL;
+""";
 
     private async Task EnsureDatabaseAsync()
     {
@@ -92,7 +107,7 @@ public sealed class DatabaseBootstrapper
                 TaxId NVARCHAR(20) NULL,
                 ContactName NVARCHAR(100) NULL,
                 Phone NVARCHAR(50) NULL,
-                Address NVARCHAR(500) NULL,
+                CompanyAddress NVARCHAR(500) NULL,
                 TaxType VARCHAR(20) NULL,
                 IsActive BIT NOT NULL DEFAULT (1)
             );
@@ -112,6 +127,55 @@ public sealed class DatabaseBootstrapper
         """;
 
     private const string CustomerSchemaSql = """
+        SET XACT_ABORT ON;
+        BEGIN TRY
+            BEGIN TRANSACTION;
+            IF COL_LENGTH('dbo.Customer', 'Address') IS NOT NULL
+            BEGIN
+                IF COL_LENGTH('dbo.Customer', 'CompanyAddress') IS NOT NULL
+                    THROW 50001, N'Customer 同時有 Address 與 CompanyAddress，請先確認資料，未自動覆蓋。', 1;
+                EXEC sys.sp_rename N'dbo.Customer.Address', N'CompanyAddress', N'COLUMN';
+            END;
+            IF COL_LENGTH('dbo.Customer', 'MailingAddress') IS NOT NULL
+            BEGIN
+                IF COL_LENGTH('dbo.Customer', 'DeliveryAddress') IS NOT NULL
+                    THROW 50002, N'Customer 同時有 MailingAddress 與 DeliveryAddress，請先確認資料，未自動覆蓋。', 1;
+                EXEC sys.sp_rename N'dbo.Customer.MailingAddress', N'DeliveryAddress', N'COLUMN';
+            END;
+            IF COL_LENGTH('dbo.Customer', 'CompanyAddress') IS NULL
+                ALTER TABLE dbo.Customer ADD CompanyAddress NVARCHAR(500) NULL;
+            IF COL_LENGTH('dbo.Customer', 'DeliveryAddress') IS NULL
+                ALTER TABLE dbo.Customer ADD DeliveryAddress NVARCHAR(500) NULL;
+
+            IF EXISTS (SELECT 1 FROM sys.extended_properties
+                       WHERE class = 1 AND major_id = OBJECT_ID(N'dbo.Customer')
+                         AND minor_id = COLUMNPROPERTY(OBJECT_ID(N'dbo.Customer'), N'CompanyAddress', 'ColumnId')
+                         AND name = N'MS_Description')
+                EXEC sys.sp_updateextendedproperty @name=N'MS_Description', @value=N'公司地址',
+                    @level0type=N'SCHEMA', @level0name=N'dbo', @level1type=N'TABLE', @level1name=N'Customer',
+                    @level2type=N'COLUMN', @level2name=N'CompanyAddress';
+            ELSE
+                EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'公司地址',
+                    @level0type=N'SCHEMA', @level0name=N'dbo', @level1type=N'TABLE', @level1name=N'Customer',
+                    @level2type=N'COLUMN', @level2name=N'CompanyAddress';
+
+            IF EXISTS (SELECT 1 FROM sys.extended_properties
+                       WHERE class = 1 AND major_id = OBJECT_ID(N'dbo.Customer')
+                         AND minor_id = COLUMNPROPERTY(OBJECT_ID(N'dbo.Customer'), N'DeliveryAddress', 'ColumnId')
+                         AND name = N'MS_Description')
+                EXEC sys.sp_updateextendedproperty @name=N'MS_Description', @value=N'送貨地址',
+                    @level0type=N'SCHEMA', @level0name=N'dbo', @level1type=N'TABLE', @level1name=N'Customer',
+                    @level2type=N'COLUMN', @level2name=N'DeliveryAddress';
+            ELSE
+                EXEC sys.sp_addextendedproperty @name=N'MS_Description', @value=N'送貨地址',
+                    @level0type=N'SCHEMA', @level0name=N'dbo', @level1type=N'TABLE', @level1name=N'Customer',
+                    @level2type=N'COLUMN', @level2name=N'DeliveryAddress';
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+            THROW;
+        END CATCH;
         IF COL_LENGTH('dbo.Customer', 'Fax') IS NULL
             ALTER TABLE dbo.Customer ADD Fax NVARCHAR(50) NULL;
         IF COL_LENGTH('dbo.Customer', 'Email') IS NULL
@@ -122,6 +186,8 @@ public sealed class DatabaseBootstrapper
             ALTER TABLE dbo.Customer ADD ZipCode NVARCHAR(20) NULL;
         IF COL_LENGTH('dbo.Customer', 'PaymentMethod') IS NULL
             ALTER TABLE dbo.Customer ADD PaymentMethod NVARCHAR(20) NOT NULL DEFAULT (N'月結');
+        IF COL_LENGTH('dbo.Customer', 'BankName') IS NULL
+            ALTER TABLE dbo.Customer ADD BankName NVARCHAR(100) NULL;
         IF COL_LENGTH('dbo.Customer', 'BankAccount') IS NULL
             ALTER TABLE dbo.Customer ADD BankAccount NVARCHAR(100) NULL;
         IF COL_LENGTH('dbo.Customer', 'Note') IS NULL
@@ -444,6 +510,8 @@ public sealed class DatabaseBootstrapper
                 ALTER TABLE dbo.SalesQuote ADD CustomerPhone NVARCHAR(50) NULL;
             IF COL_LENGTH('dbo.SalesQuote', 'CustomerAddress') IS NULL
                 ALTER TABLE dbo.SalesQuote ADD CustomerAddress NVARCHAR(500) NULL;
+            IF COL_LENGTH('dbo.SalesQuote', 'CustomerDeliveryAddress') IS NULL
+                ALTER TABLE dbo.SalesQuote ADD CustomerDeliveryAddress NVARCHAR(500) NULL;
             IF COL_LENGTH('dbo.SalesQuote', 'TaxType') IS NULL
                 ALTER TABLE dbo.SalesQuote ADD TaxType VARCHAR(20) NOT NULL CONSTRAINT DF_SalesQuote_TaxType DEFAULT ('Exclusive');
             IF COL_LENGTH('dbo.SalesQuote', 'TaxRate') IS NULL
@@ -466,7 +534,7 @@ public sealed class DatabaseBootstrapper
                         CustomerTaxId = c.TaxId,
                         CustomerContactName = c.ContactName,
                         CustomerPhone = c.Phone,
-                        CustomerAddress = c.Address
+                        CustomerAddress = c.CompanyAddress
                     FROM dbo.SalesQuote q
                     INNER JOIN dbo.Customer c ON c.CustomerID = q.CustomerID
                     WHERE q.CustomerCode = N'''' OR q.CustomerName = N'''';
@@ -511,6 +579,12 @@ public sealed class DatabaseBootstrapper
                 ALTER TABLE dbo.SalesQuoteItem ADD ProductCode NVARCHAR(50) NULL;
             IF COL_LENGTH('dbo.SalesQuoteItem', 'ProductName') IS NULL
                 ALTER TABLE dbo.SalesQuoteItem ADD ProductName NVARCHAR(200) NOT NULL CONSTRAINT DF_SalesQuoteItem_ProductName DEFAULT (N'');
+            IF COL_LENGTH('dbo.SalesQuoteItem', 'Thickness') IS NULL
+                ALTER TABLE dbo.SalesQuoteItem ADD Thickness NVARCHAR(50) NULL;
+            IF COL_LENGTH('dbo.SalesQuoteItem', 'Width') IS NULL
+                ALTER TABLE dbo.SalesQuoteItem ADD Width NVARCHAR(50) NULL;
+            IF COL_LENGTH('dbo.SalesQuoteItem', 'Length') IS NULL
+                ALTER TABLE dbo.SalesQuoteItem ADD Length NVARCHAR(50) NULL;
             IF COL_LENGTH('dbo.SalesQuoteItem', 'Specification') IS NULL
                 ALTER TABLE dbo.SalesQuoteItem ADD Specification NVARCHAR(500) NULL;
             IF COL_LENGTH('dbo.SalesQuoteItem', 'Unit') IS NULL
@@ -592,7 +666,7 @@ public sealed class DatabaseBootstrapper
                         CustomerTaxId = c.TaxId,
                         CustomerContactName = c.ContactName,
                         CustomerPhone = c.Phone,
-                        CustomerAddress = c.Address
+                        CustomerAddress = c.CompanyAddress
                     FROM dbo.SalesOrder so
                     INNER JOIN dbo.Customer c ON c.CustomerID = so.CustomerID
                     WHERE so.CustomerCode = N'''' OR so.CustomerName = N'''';
@@ -630,6 +704,12 @@ public sealed class DatabaseBootstrapper
                 ALTER TABLE dbo.SalesOrderItem ADD ProductCode NVARCHAR(50) NULL;
             IF COL_LENGTH('dbo.SalesOrderItem', 'ProductName') IS NULL
                 ALTER TABLE dbo.SalesOrderItem ADD ProductName NVARCHAR(200) NOT NULL CONSTRAINT DF_SalesOrderItem_ProductName DEFAULT (N'');
+            IF COL_LENGTH('dbo.SalesOrderItem', 'Thickness') IS NULL
+                ALTER TABLE dbo.SalesOrderItem ADD Thickness NVARCHAR(50) NULL;
+            IF COL_LENGTH('dbo.SalesOrderItem', 'Width') IS NULL
+                ALTER TABLE dbo.SalesOrderItem ADD Width NVARCHAR(50) NULL;
+            IF COL_LENGTH('dbo.SalesOrderItem', 'Length') IS NULL
+                ALTER TABLE dbo.SalesOrderItem ADD Length NVARCHAR(50) NULL;
             IF COL_LENGTH('dbo.SalesOrderItem', 'Specification') IS NULL
                 ALTER TABLE dbo.SalesOrderItem ADD Specification NVARCHAR(500) NULL;
             IF COL_LENGTH('dbo.SalesOrderItem', 'Unit') IS NULL
@@ -785,13 +865,14 @@ public sealed class DatabaseBootstrapper
             VALUES
               (N'PAGE_ADMIN_USERS', N'使用者管理', N'系統管理', N'Admin', N'Users', 10, 10),
               (N'PAGE_ADMIN_PERMISSIONS', N'權限設定', N'系統管理', N'Admin', N'Permissions', 10, 20),
-              (N'PAGE_ADMIN_BRANDING', N'公司形象', N'系統管理', N'Admin', N'Branding', 10, 30),
+              (N'PAGE_ADMIN_BRANDING', N'系統參數', N'系統管理', N'Admin', N'Branding', 10, 30),
               (N'PAGE_DASHBOARD', N'基礎資料預留', N'基礎資料', N'Home', N'Index', 20, 10),
               (N'PAGE_COMPONENT_TEST', N'元件測試頁面', N'基礎資料', N'Home', N'ComponentTest', 20, 20),
               (N'PAGE_CUSTOMER_LAYOUT_TEST', N'客戶資料管理', N'基礎資料', N'Home', N'CustomerLayoutTest', 20, 30),
               (N'PAGE_PRODUCT_LAYOUT_TEST', N'商品資料管理', N'基礎資料', N'Home', N'ProductLayoutTest', 20, 40),
               (N'PAGE_PRODUCT_MATERIAL', N'商品材質管理', N'基礎資料', N'Home', N'MaterialLayoutTest', 20, 50),
-              (N'PAGE_SALES_QUOTATION', N'報價單', N'銷售管理', N'Quotation', N'Index', 30, 10)
+              (N'PAGE_SALES_QUOTATION', N'報價單', N'銷售管理', N'Quotation', N'Index', 30, 10),
+              (N'PAGE_SALES_ORDER', N'訂購單', N'銷售管理', N'SalesOrder', N'Index', 30, 20)
         ) AS source (PageCode, PageName, MenuGroup, ControllerName, ActionName, MenuSortOrder, SortOrder)
         ON target.PageCode = source.PageCode
         WHEN MATCHED THEN
@@ -816,7 +897,8 @@ public sealed class DatabaseBootstrapper
                   (N'PAGE_CUSTOMER_LAYOUT_TEST', N'NAVIGATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'CREATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'DELETE'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'COPY'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'EDIT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'CANCEL'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIND'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'PRINT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'FIRST'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'PREVIOUS'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'NEXT'), (N'PAGE_CUSTOMER_LAYOUT_TEST', N'LAST'),
                   (N'PAGE_PRODUCT_LAYOUT_TEST', N'NAVIGATE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'CREATE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'DELETE'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'COPY'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'EDIT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'CANCEL'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'FIND'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'PRINT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'FIRST'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'PREVIOUS'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'NEXT'), (N'PAGE_PRODUCT_LAYOUT_TEST', N'LAST'),
                   (N'PAGE_PRODUCT_MATERIAL', N'NAVIGATE'), (N'PAGE_PRODUCT_MATERIAL', N'CREATE'), (N'PAGE_PRODUCT_MATERIAL', N'DELETE'), (N'PAGE_PRODUCT_MATERIAL', N'COPY'), (N'PAGE_PRODUCT_MATERIAL', N'EDIT'), (N'PAGE_PRODUCT_MATERIAL', N'CANCEL'), (N'PAGE_PRODUCT_MATERIAL', N'FIND'), (N'PAGE_PRODUCT_MATERIAL', N'PRINT'), (N'PAGE_PRODUCT_MATERIAL', N'FIRST'), (N'PAGE_PRODUCT_MATERIAL', N'PREVIOUS'), (N'PAGE_PRODUCT_MATERIAL', N'NEXT'), (N'PAGE_PRODUCT_MATERIAL', N'LAST'),
-                  (N'PAGE_SALES_QUOTATION', N'NAVIGATE'), (N'PAGE_SALES_QUOTATION', N'CREATE'), (N'PAGE_SALES_QUOTATION', N'DELETE'), (N'PAGE_SALES_QUOTATION', N'COPY'), (N'PAGE_SALES_QUOTATION', N'EDIT'), (N'PAGE_SALES_QUOTATION', N'CANCEL'), (N'PAGE_SALES_QUOTATION', N'FIND'), (N'PAGE_SALES_QUOTATION', N'PRINT'), (N'PAGE_SALES_QUOTATION', N'FIRST'), (N'PAGE_SALES_QUOTATION', N'PREVIOUS'), (N'PAGE_SALES_QUOTATION', N'NEXT'), (N'PAGE_SALES_QUOTATION', N'LAST')
+                  (N'PAGE_SALES_QUOTATION', N'NAVIGATE'), (N'PAGE_SALES_QUOTATION', N'CREATE'), (N'PAGE_SALES_QUOTATION', N'DELETE'), (N'PAGE_SALES_QUOTATION', N'COPY'), (N'PAGE_SALES_QUOTATION', N'EDIT'), (N'PAGE_SALES_QUOTATION', N'CANCEL'), (N'PAGE_SALES_QUOTATION', N'FIND'), (N'PAGE_SALES_QUOTATION', N'PRINT'), (N'PAGE_SALES_QUOTATION', N'FIRST'), (N'PAGE_SALES_QUOTATION', N'PREVIOUS'), (N'PAGE_SALES_QUOTATION', N'NEXT'), (N'PAGE_SALES_QUOTATION', N'LAST'),
+                  (N'PAGE_SALES_ORDER', N'NAVIGATE'), (N'PAGE_SALES_ORDER', N'CREATE'), (N'PAGE_SALES_ORDER', N'DELETE'), (N'PAGE_SALES_ORDER', N'COPY'), (N'PAGE_SALES_ORDER', N'EDIT'), (N'PAGE_SALES_ORDER', N'CANCEL'), (N'PAGE_SALES_ORDER', N'FIND'), (N'PAGE_SALES_ORDER', N'PRINT'), (N'PAGE_SALES_ORDER', N'FIRST'), (N'PAGE_SALES_ORDER', N'PREVIOUS'), (N'PAGE_SALES_ORDER', N'NEXT'), (N'PAGE_SALES_ORDER', N'LAST')
             ) AS supported(PageCode, ActionCode)
             INNER JOIN dbo.AppPage pg ON pg.PageCode = supported.PageCode
             INNER JOIN dbo.AppAction a ON a.ActionCode = supported.ActionCode
@@ -879,7 +961,8 @@ public sealed class DatabaseBootstrapper
               (N'PAGE_CUSTOMER_LAYOUT_TEST'), (N'PAGE_CUSTOMER_LAYOUT_TEST_CREATE'), (N'PAGE_CUSTOMER_LAYOUT_TEST_EDIT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_FIND'), (N'PAGE_CUSTOMER_LAYOUT_TEST_PRINT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_FIRST'), (N'PAGE_CUSTOMER_LAYOUT_TEST_PREVIOUS'), (N'PAGE_CUSTOMER_LAYOUT_TEST_NEXT'), (N'PAGE_CUSTOMER_LAYOUT_TEST_LAST'),
               (N'PAGE_PRODUCT_LAYOUT_TEST'), (N'PAGE_PRODUCT_LAYOUT_TEST_FIND'), (N'PAGE_PRODUCT_LAYOUT_TEST_PRINT'), (N'PAGE_PRODUCT_LAYOUT_TEST_FIRST'), (N'PAGE_PRODUCT_LAYOUT_TEST_PREVIOUS'), (N'PAGE_PRODUCT_LAYOUT_TEST_NEXT'), (N'PAGE_PRODUCT_LAYOUT_TEST_LAST'),
               (N'PAGE_PRODUCT_MATERIAL'), (N'PAGE_PRODUCT_MATERIAL_FIND'), (N'PAGE_PRODUCT_MATERIAL_PRINT'), (N'PAGE_PRODUCT_MATERIAL_FIRST'), (N'PAGE_PRODUCT_MATERIAL_PREVIOUS'), (N'PAGE_PRODUCT_MATERIAL_NEXT'), (N'PAGE_PRODUCT_MATERIAL_LAST'),
-              (N'PAGE_SALES_QUOTATION'), (N'PAGE_SALES_QUOTATION_CREATE'), (N'PAGE_SALES_QUOTATION_DELETE'), (N'PAGE_SALES_QUOTATION_COPY'), (N'PAGE_SALES_QUOTATION_EDIT'), (N'PAGE_SALES_QUOTATION_CANCEL'), (N'PAGE_SALES_QUOTATION_FIND'), (N'PAGE_SALES_QUOTATION_PRINT'), (N'PAGE_SALES_QUOTATION_FIRST'), (N'PAGE_SALES_QUOTATION_PREVIOUS'), (N'PAGE_SALES_QUOTATION_NEXT'), (N'PAGE_SALES_QUOTATION_LAST')
+              (N'PAGE_SALES_QUOTATION'), (N'PAGE_SALES_QUOTATION_CREATE'), (N'PAGE_SALES_QUOTATION_DELETE'), (N'PAGE_SALES_QUOTATION_COPY'), (N'PAGE_SALES_QUOTATION_EDIT'), (N'PAGE_SALES_QUOTATION_CANCEL'), (N'PAGE_SALES_QUOTATION_FIND'), (N'PAGE_SALES_QUOTATION_PRINT'), (N'PAGE_SALES_QUOTATION_FIRST'), (N'PAGE_SALES_QUOTATION_PREVIOUS'), (N'PAGE_SALES_QUOTATION_NEXT'), (N'PAGE_SALES_QUOTATION_LAST'),
+              (N'PAGE_SALES_ORDER'), (N'PAGE_SALES_ORDER_CREATE'), (N'PAGE_SALES_ORDER_DELETE'), (N'PAGE_SALES_ORDER_COPY'), (N'PAGE_SALES_ORDER_EDIT'), (N'PAGE_SALES_ORDER_CANCEL'), (N'PAGE_SALES_ORDER_FIND'), (N'PAGE_SALES_ORDER_PRINT'), (N'PAGE_SALES_ORDER_FIRST'), (N'PAGE_SALES_ORDER_PREVIOUS'), (N'PAGE_SALES_ORDER_NEXT'), (N'PAGE_SALES_ORDER_LAST')
         ) AS allowed(PermissionCode) ON r.RoleCode = N'SALES'
         INNER JOIN dbo.PageAction pa ON pa.PermissionCode = allowed.PermissionCode
         WHERE NOT EXISTS (

@@ -15,7 +15,7 @@
   var cancelButton = root.querySelector("[data-customer-cancel]");
   var canCreate = root.dataset.canCreate === "true";
   var canEdit = root.dataset.canEdit === "true";
-  var fields = ["customerName", "contact", "phone", "fax", "email", "line", "taxId", "zipCode", "deliveryAddress", "paymentMethod", "bankAccount", "note"];
+  var fields = ["customerName", "contact", "phone", "fax", "email", "line", "taxId", "zipCode", "companyAddress", "deliveryAddress", "paymentMethod", "bankName", "bankAccount", "note"];
   var selectedIndex = -1;
   var returnIndex = -1;
   var filteredIndexes = [];
@@ -80,7 +80,7 @@
       var row = document.createElement("tr");
       row.className = mode === "edit" && index === selectedIndex ? "is-selected" : "";
       row.dataset.customerIndex = String(index);
-      ["customerCode", "customerName", "contact", "phone", "email", "line", "taxId", "deliveryAddress", "paymentMethod"].forEach(function (field) {
+      ["customerCode", "customerName", "contact", "phone", "email", "line", "taxId", "companyAddress", "paymentMethod"].forEach(function (field) {
         var cell = document.createElement("td");
         cell.textContent = customer[field] || "";
         row.appendChild(cell);

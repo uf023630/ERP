@@ -39,7 +39,8 @@ public sealed class SystemSettingsService
             GetNullableSetting(settings, "COMPANY_LOGO_PATH"),
             GetNullableSetting(settings, "LOGIN_HERO_IMAGE_PATH"),
             GetSetting(settings, "LOGIN_TITLE", "智慧進銷存系統"),
-            GetSetting(settings, "LOGIN_SUBTITLE", "請使用管理員提供的帳號登入"));
+            GetSetting(settings, "LOGIN_SUBTITLE", "請使用管理員提供的帳號登入"),
+            GetSetting(settings, "SALES_ORDER_PDF_DIRECTORY", OrderPdfStorage.DefaultDirectory));
     }
 
     public async Task<SystemSkin> GetSkinAsync()
@@ -60,6 +61,7 @@ public sealed class SystemSettingsService
         await UpsertSettingAsync(connection, transaction, "LOGIN_TITLE", "登入標題", "公司形象", branding.LoginTitle, "登入頁主標題");
         await UpsertSettingAsync(connection, transaction, "LOGIN_SUBTITLE", "登入副標題", "公司形象", branding.LoginSubtitle, "登入頁副標題");
         await UpsertSettingAsync(connection, transaction, "SYSTEM_SKIN", "系統皮膚", "介面設定", skin.SkinKey, "全站套用的介面皮膚");
+        await UpsertSettingAsync(connection, transaction, "SALES_ORDER_PDF_DIRECTORY", "訂購單 PDF 儲存路徑", "公司形象", branding.SalesOrderPdfDirectory, "相對網站根目錄或絕對目錄；變更僅影響新上傳附件");
 
         await transaction.CommitAsync();
     }

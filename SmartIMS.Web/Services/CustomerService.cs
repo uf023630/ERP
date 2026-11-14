@@ -11,7 +11,7 @@ public sealed class CustomerService(SqlConnectionFactory factory)
         await using var connection = factory.CreateConnection();
         await connection.OpenAsync();
         await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT CustomerID, CustomerName, ContactName, Phone, Fax, Email, LineId, TaxId, ZipCode, Address, PaymentMethod, BankAccount, Note, CustomerCode FROM dbo.Customer WHERE IsActive = 1 ORDER BY CustomerID;";
+        command.CommandText = "SELECT CustomerID, CustomerName, ContactName, Phone, Fax, Email, LineId, TaxId, ZipCode, CompanyAddress, PaymentMethod, BankAccount, Note, CustomerCode, BankName, DeliveryAddress FROM dbo.Customer WHERE IsActive = 1 ORDER BY CustomerID;";
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
             result.Add(new CustomerItem { CustomerId = reader.GetInt64(0),
@@ -23,11 +23,13 @@ public sealed class CustomerService(SqlConnectionFactory factory)
                 Line = reader.IsDBNull(6) ? "" : reader.GetString(6),
                 TaxId = reader.IsDBNull(7) ? "" : reader.GetString(7),
                 ZipCode = reader.IsDBNull(8) ? "" : reader.GetString(8),
-                DeliveryAddress = reader.IsDBNull(9) ? "" : reader.GetString(9),
+                CompanyAddress = reader.IsDBNull(9) ? "" : reader.GetString(9),
                 PaymentMethod = reader.IsDBNull(10) ? "" : reader.GetString(10),
                 BankAccount = reader.IsDBNull(11) ? "" : reader.GetString(11),
                 Note = reader.IsDBNull(12) ? "" : reader.GetString(12),
-                CustomerCode = reader.GetString(13) });
+                CustomerCode = reader.GetString(13),
+                BankName = reader.IsDBNull(14) ? "" : reader.GetString(14),
+                DeliveryAddress = reader.IsDBNull(15) ? "" : reader.GetString(15) });
         return result;
     }
     public async Task<CustomerItem> SaveAsync(CustomerItem item)
@@ -56,8 +58,8 @@ public sealed class CustomerService(SqlConnectionFactory factory)
         await using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = item.CustomerId.HasValue
-            ? "UPDATE dbo.Customer SET CustomerName = @CustomerName, ContactName = @Contact, Phone = @Phone, Fax = @Fax, Email = @Email, LineId = @Line, TaxId = @TaxId, ZipCode = @ZipCode, Address = @DeliveryAddress, PaymentMethod = @PaymentMethod, BankAccount = @BankAccount, Note = @Note OUTPUT inserted.CustomerID, inserted.CustomerCode WHERE CustomerID = @Id AND IsActive = 1;"
-            : "INSERT INTO dbo.Customer (CustomerCode, CustomerName, ContactName, Phone, Fax, Email, LineId, TaxId, ZipCode, Address, PaymentMethod, BankAccount, Note) OUTPUT inserted.CustomerID, inserted.CustomerCode VALUES (@Code, @CustomerName, @Contact, @Phone, @Fax, @Email, @Line, @TaxId, @ZipCode, @DeliveryAddress, @PaymentMethod, @BankAccount, @Note);";
+            ? "UPDATE dbo.Customer SET CustomerName = @CustomerName, ContactName = @Contact, Phone = @Phone, Fax = @Fax, Email = @Email, LineId = @Line, TaxId = @TaxId, ZipCode = @ZipCode, CompanyAddress = @CompanyAddress, PaymentMethod = @PaymentMethod, BankAccount = @BankAccount, BankName = @BankName, DeliveryAddress = @DeliveryAddress, Note = @Note OUTPUT inserted.CustomerID, inserted.CustomerCode WHERE CustomerID = @Id AND IsActive = 1;"
+            : "INSERT INTO dbo.Customer (CustomerCode, CustomerName, ContactName, Phone, Fax, Email, LineId, TaxId, ZipCode, CompanyAddress, PaymentMethod, BankAccount, BankName, DeliveryAddress, Note) OUTPUT inserted.CustomerID, inserted.CustomerCode VALUES (@Code, @CustomerName, @Contact, @Phone, @Fax, @Email, @Line, @TaxId, @ZipCode, @CompanyAddress, @PaymentMethod, @BankAccount, @BankName, @DeliveryAddress, @Note);";
         command.Parameters.AddWithValue("@Id", (object?)item.CustomerId ?? DBNull.Value);
         command.Parameters.AddWithValue("@Code", (object?)newCode ?? DBNull.Value);
         item.CustomerName = (item.CustomerName ?? "").Trim();
@@ -76,10 +78,14 @@ public sealed class CustomerService(SqlConnectionFactory factory)
         command.Parameters.AddWithValue("@TaxId", item.TaxId);
         item.ZipCode = (item.ZipCode ?? "").Trim();
         command.Parameters.AddWithValue("@ZipCode", item.ZipCode);
-        item.DeliveryAddress = (item.DeliveryAddress ?? "").Trim();
-        command.Parameters.AddWithValue("@DeliveryAddress", item.DeliveryAddress);
+        item.CompanyAddress = (item.CompanyAddress ?? "").Trim();
+        command.Parameters.AddWithValue("@CompanyAddress", item.CompanyAddress);
         item.PaymentMethod = (item.PaymentMethod ?? "").Trim();
         command.Parameters.AddWithValue("@PaymentMethod", item.PaymentMethod);
+        item.BankName = (item.BankName ?? "").Trim();
+        command.Parameters.AddWithValue("@BankName", item.BankName);
+        item.DeliveryAddress = (item.DeliveryAddress ?? "").Trim();
+        command.Parameters.AddWithValue("@DeliveryAddress", item.DeliveryAddress);
         item.BankAccount = (item.BankAccount ?? "").Trim();
         command.Parameters.AddWithValue("@BankAccount", item.BankAccount);
         item.Note = (item.Note ?? "").Trim();

@@ -1,12 +1,12 @@
 @model SmartIMS.Web.ViewModels.BrandingViewModel
 @{
-    ViewData["Title"] = "公司形象設定";
+    ViewData["Title"] = "系統參數設定";
     ViewData["ToolbarPageCode"] = "PAGE_ADMIN_BRANDING";
     ViewData["ToolbarActions"] = "edit,find";
 }
 
 <div class="page-title-row">
-    <h1>公司形象設定</h1>
+    <h1>系統參數設定</h1>
 </div>
 
 <div class="row g-2">
@@ -48,6 +48,12 @@
                         }
                     </select>
                     <span asp-validation-for="SkinKey" class="text-danger small"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="SalesOrderPdfDirectory" class="form-label"></label>
+                    <input asp-for="SalesOrderPdfDirectory" class="form-control form-control-sm" />
+                    <span asp-validation-for="SalesOrderPdfDirectory" class="text-danger small"></span>
+                    <div class="text-muted small mt-1">預設 App_Data/SalesOrders，位於 IIS 網站目錄下。也可輸入絕對路徑；目錄會自動建立，IIS 必須有寫入權限。變更僅影響新上傳檔案，既有附件保留原路徑。</div>
                 </div>
                 <button type="submit" class="btn btn-sm btn-primary">儲存</button>
             </form>

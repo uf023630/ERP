@@ -164,13 +164,14 @@ public sealed class QuotationController : Controller
     [HttpPost]
     [ValidateAntiForgeryToken]
     [RequirePermission("PAGE_SALES_QUOTATION_EDIT")]
+    [RequirePermission("PAGE_SALES_ORDER_CREATE")]
     public async Task<IActionResult> Convert(long id)
     {
         try
         {
             var result = await _quotationService.ConvertToSalesOrderAsync(id);
-            TempData["StatusMessage"] = $"已轉成銷售單 {result.SalesOrderNo}";
-            return RedirectToAction(nameof(Index), new { id });
+            TempData["StatusMessage"] = $"已轉成訂購單 {result.SalesOrderNo}";
+            return RedirectToAction("Edit", "SalesOrder", new { id = result.SalesOrderId });
         }
         catch (InvalidOperationException exception)
         {
@@ -211,6 +212,9 @@ public sealed class QuotationController : Controller
             var isBlank = !line.ProductId.HasValue &&
                 string.IsNullOrWhiteSpace(line.ProductCode) &&
                 string.IsNullOrWhiteSpace(line.ProductName) &&
+                string.IsNullOrWhiteSpace(line.Thickness) &&
+                string.IsNullOrWhiteSpace(line.Width) &&
+                string.IsNullOrWhiteSpace(line.Length) &&
                 string.IsNullOrWhiteSpace(line.Specification) &&
                 string.IsNullOrWhiteSpace(line.Unit) &&
                 line.UnitPrice == 0;

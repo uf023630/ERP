@@ -1,0 +1,483 @@
+@using SmartIMS.Web.Services
+@using SmartIMS.Web.ViewModels
+@model SalesOrderListViewModel
+@{
+    ViewData["Title"] = "訂購單";
+    ViewData["ToolbarPageCode"] = "PAGE_SALES_ORDER";
+    ViewData["ToolbarActions"] = "create,delete,copy,edit,cancel,find,print,first,previous,next,last";
+    var canCreate = User.HasClaim(AuthService.PermissionClaimType, "PAGE_SALES_ORDER_CREATE");
+    var createUrl = Url.Action("Create", "SalesOrder") ?? "";
+    var copyUrlTemplate = Url.Action("Copy", "SalesOrder", new { id = "__id__" }) ?? "";
+    var editUrlTemplate = Url.Action("Edit", "SalesOrder", new { id = "__id__" }) ?? "";
+    var detailUrl = Url.Action("Detail", "SalesOrder") ?? "";
+}
+
+<div class="page-title-row">
+    <h1>訂購單</h1>
+    <span class="text-muted small">點選上方訂購單，下方會顯示完整內容。</span>
+</div>
+
+<style>
+    .quotation-sort-button { border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; padding: 0; width: 100%; text-align: inherit; display: flex; justify-content: space-between; align-items: center; gap: .35rem; }
+    .quotation-sort-button::after { content: "▾"; font-size: .75em; }
+    .quotation-sort-button:focus-visible { outline: 2px solid #245b91; outline-offset: 2px; }
+    .quotation-sort-indicator { margin-left: .3em; font-size: .75em; }
+    .quotation-sort-button.is-filtered { color: #b42318; }
+    .quotation-column-menu { position: fixed; z-index: 1100; width: 220px; max-height: min(380px, 75vh); overflow-y: auto; background: #fff; border: 1px solid #ccd2d8; border-radius: 4px; box-shadow: 0 4px 12px #0003; padding: 4px 0; color: #222; font-size: 13px; }
+    .quotation-column-menu[hidden] { display: none; }
+    .quotation-column-menu button { display: block; width: 100%; padding: 6px 12px; border: 0; background: transparent; text-align: left; color: inherit; }
+    .quotation-column-menu button:hover, .quotation-column-menu button:focus-visible { background: #e7f0fa; }
+    .quotation-column-menu .menu-separator { border-top: 1px solid #ddd; margin: 4px 0; }
+    .quotation-column-menu .menu-search { padding: 4px 8px; }
+    .quotation-column-menu .menu-search input { width: 100%; }
+    .quotation-column-menu .menu-values { max-height: 145px; overflow-y: auto; }
+    .quotation-column-menu .menu-values button[hidden] { display: none; }
+</style>
+
+<div class="quotation-master-detail" data-quotation-list>
+    <section class="win-panel quotation-master-panel" aria-labelledby="quotation-list-heading">
+        <div class="section-caption" id="quotation-list-heading">訂購單清單</div>
+        <div class="row g-2 align-items-center mb-2">
+            <div class="col-md-5">
+                <input id="quotationSearch"
+                       class="form-control form-control-sm"
+                       type="search"
+                       placeholder="搜尋訂購單號、客戶、商品名稱或來源報價單號" />
+            </div>
+            <div class="col-md-7 text-md-end">
+                @if (canCreate)
+                {
+                    <a class="btn btn-sm btn-primary" asp-action="Create">新增訂購單</a>
+                }
+                <span class="quotation-list-status text-muted small ms-2" data-list-status></span>
+            </div>
+        </div>
+
+        <div class="listview-frame quotation-master-list-frame">
+            <table class="table table-sm table-bordered win-table align-middle mb-0" data-quotation-table>
+                <thead>
+                    <tr>
+                        <th scope="col" aria-sort="none"><button type="button" class="quotation-sort-button" data-sort-type="text">訂購單號<span class="quotation-sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" aria-sort="none"><button type="button" class="quotation-sort-button" data-sort-type="date">訂單日期<span class="quotation-sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" aria-sort="none"><button type="button" class="quotation-sort-button" data-sort-type="date">預交日期<span class="quotation-sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" aria-sort="none"><button type="button" class="quotation-sort-button" data-sort-type="text">客戶<span class="quotation-sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" aria-sort="none"><button type="button" class="quotation-sort-button" data-sort-type="text">計稅方式<span class="quotation-sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" class="text-end" aria-sort="none"><button type="button" class="quotation-sort-button" data-sort-type="number">小計<span class="quotation-sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" class="text-end" aria-sort="none"><button type="button" class="quotation-sort-button" data-sort-type="number">稅額<span class="quotation-sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" class="text-end" aria-sort="none"><button type="button" class="quotation-sort-button" data-sort-type="number">總計<span class="quotation-sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" aria-sort="none"><button type="button" class="quotation-sort-button" data-sort-type="text">狀態<span class="quotation-sort-indicator" aria-hidden="true"></span></button></th>
+                        <th scope="col" aria-sort="none"><button type="button" class="quotation-sort-button" data-sort-type="text">來源報價單號<span class="quotation-sort-indicator" aria-hidden="true"></span></button></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var quotation in Model.SalesOrders)
+                    {
+                        var searchText = $"{quotation.OrderNo} {quotation.CustomerCode} {quotation.CustomerName} {quotation.SourceQuoteNo} {quotation.ProductNames}";
+                        var selected = quotation.SalesOrderId == Model.SelectedSalesOrderId;
+                        <tr class="@(selected ? "is-selected" : "")"
+                            tabindex="0"
+                            aria-selected="@selected.ToString().ToLowerInvariant()"
+                            data-quotation-id="@quotation.SalesOrderId"
+                            data-search-text="@searchText"
+                            data-status="@quotation.Status">
+                            <td class="fw-semibold">@quotation.OrderNo</td>
+                            <td>@quotation.OrderDate.ToString("yyyy/MM/dd")</td>
+                            <td>@quotation.RequiredDate.ToString("yyyy/MM/dd")</td>
+                            <td>@quotation.CustomerName</td>
+                            <td>@SalesOrderTaxTypes.GetLabel(quotation.TaxType)</td>
+                            <td class="text-end" data-sort-value="@quotation.Subtotal.ToString(System.Globalization.CultureInfo.InvariantCulture)">@quotation.Subtotal.ToString("N2")</td>
+                            <td class="text-end" data-sort-value="@quotation.TaxAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)">@quotation.TaxAmount.ToString("N2")</td>
+                            <td class="text-end fw-semibold" data-sort-value="@quotation.TotalAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)">@quotation.TotalAmount.ToString("N2")</td>
+                            <td>
+                                <span class="quotation-status quotation-status-@quotation.Status.ToLowerInvariant()">
+                                    @SalesOrderStatuses.GetLabel(quotation.Status)
+                                </span>
+                            </td>
+                            <td>@quotation.SourceQuoteNo</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="win-panel quotation-detail-panel"
+             aria-labelledby="quotation-detail-heading"
+             aria-live="polite">
+        <div class="section-caption" id="quotation-detail-heading">訂購單內容</div>
+        <div class="quotation-detail-content" data-detail-content>
+            @if (Model.SelectedSalesOrder is not null)
+            {
+                <partial name="_Detail" model="Model.SelectedSalesOrder" />
+            }
+            else
+            {
+                <div class="quotation-detail-empty">
+                    <span>目前沒有訂購單資料</span>
+                </div>
+            }
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var root = document.querySelector("[data-quotation-list]");
+            if (!root) {
+                return;
+            }
+
+            var table = root.querySelector("[data-quotation-table]");
+            var search = document.getElementById("quotationSearch");
+            var status = root.querySelector("[data-list-status]");
+            var detailContent = root.querySelector("[data-detail-content]");
+            var toolbarTarget = document.querySelector(".content-frame");
+            var createUrl = "@createUrl";
+            var copyUrlTemplate = "@copyUrlTemplate";
+            var editUrlTemplate = "@editUrlTemplate";
+            var detailUrl = "@detailUrl";
+            var detailRequestVersion = 0;
+            var sortColumn = -1;
+            var sortAscending = true;
+            var collator = new Intl.Collator("zh-Hant", { numeric: true, sensitivity: "base" });
+            var originalRows = rows();
+            var columnFilters = new Map();
+            var activeButton = null;
+            var columnMenu = document.createElement("div");
+            columnMenu.className = "quotation-column-menu";
+            columnMenu.hidden = true;
+            columnMenu.setAttribute("aria-label", "欄位排序與篩選");
+            document.body.appendChild(columnMenu);
+
+            table.querySelectorAll("thead [data-sort-type]").forEach(function (button) {
+                button.setAttribute("aria-haspopup", "true");
+                button.setAttribute("aria-expanded", "false");
+                button.addEventListener("click", function () {
+                    if (activeButton === button && !columnMenu.hidden) { closeColumnMenu(); return; }
+                    openColumnMenu(button);
+                });
+            });
+
+            function closeColumnMenu() {
+                columnMenu.hidden = true;
+                if (activeButton) activeButton.setAttribute("aria-expanded", "false");
+                activeButton = null;
+            }
+
+            function sortRows(button, direction) {
+                var header = button.closest("th");
+                var column = header.cellIndex;
+                sortColumn = direction ? column : -1;
+                sortAscending = direction === "ascending";
+                table.querySelectorAll("thead th").forEach(function (item) {
+                    item.setAttribute("aria-sort", direction && item === header ? direction : "none");
+                    item.querySelector(".quotation-sort-indicator").textContent = direction && item === header ? (sortAscending ? "▲" : "▼") : "";
+                });
+                var ordered = originalRows.slice();
+                if (direction) {
+                    ordered.sort(function (a, b) {
+                        var aCell = a.cells[column], bCell = b.cells[column];
+                        var aValue = aCell.dataset.sortValue ?? aCell.textContent.trim();
+                        var bValue = bCell.dataset.sortValue ?? bCell.textContent.trim();
+                        var result = button.dataset.sortType === "number" ? Number(aValue) - Number(bValue) : collator.compare(aValue, bValue);
+                        return sortAscending ? result : -result;
+                    });
+                }
+                ordered.forEach(function (row) { table.tBodies[0].appendChild(row); });
+                updateStatus();
+                syncToolbarState();
+                closeColumnMenu();
+            }
+
+            function openColumnMenu(button) {
+                closeColumnMenu();
+                activeButton = button;
+                button.setAttribute("aria-expanded", "true");
+                var column = button.closest("th").cellIndex;
+                columnMenu.replaceChildren();
+                function addAction(label, action) {
+                    var item = document.createElement("button");
+                    item.type = "button";
+                    item.textContent = label;
+                    item.addEventListener("click", action);
+                    columnMenu.appendChild(item);
+                }
+                function separator() {
+                    var item = document.createElement("div");
+                    item.className = "menu-separator";
+                    columnMenu.appendChild(item);
+                }
+                addAction("清除篩選條件", function () {
+                    columnFilters.delete(column);
+                    button.classList.remove("is-filtered");
+                    applyFilter(); syncToolbarState(); closeColumnMenu();
+                });
+                separator();
+                if (button.dataset.sortType === "date") {
+                    addAction("↓ 最新日期到最舊日期", function () { sortRows(button, "descending"); });
+                    addAction("↑ 最舊日期到最新日期", function () { sortRows(button, "ascending"); });
+                } else {
+                    addAction("↑ 從小到大排序", function () { sortRows(button, "ascending"); });
+                    addAction("↓ 從大到小排序", function () { sortRows(button, "descending"); });
+                }
+                addAction("清除排序", function () { sortRows(button, null); });
+                separator();
+                var searchWrap = document.createElement("div");
+                searchWrap.className = "menu-search";
+                var input = document.createElement("input");
+                input.type = "search";
+                input.className = "form-control form-control-sm";
+                input.placeholder = "搜尋欄位值";
+                input.setAttribute("aria-label", "搜尋欄位值");
+                searchWrap.appendChild(input);
+                columnMenu.appendChild(searchWrap);
+                var list = document.createElement("div");
+                list.className = "menu-values";
+                columnMenu.appendChild(list);
+                var values = Array.from(new Set(originalRows.map(function (row) { return row.cells[column].textContent.trim(); })));
+                values.sort(collator.compare);
+                values.forEach(function (value) {
+                    var item = document.createElement("button");
+                    item.type = "button";
+                    item.textContent = (columnFilters.get(column) === value ? "✓ " : "") + (value || "（空白）");
+                    item.dataset.value = value;
+                    item.addEventListener("click", function () {
+                        columnFilters.set(column, value);
+                        button.classList.add("is-filtered");
+                        applyFilter(); syncToolbarState(); closeColumnMenu();
+                    });
+                    list.appendChild(item);
+                });
+                input.addEventListener("input", function () {
+                    var term = input.value.trim().toLowerCase();
+                    Array.from(list.children).forEach(function (item) { item.hidden = !item.dataset.value.toLowerCase().includes(term); });
+                });
+                columnMenu.hidden = false;
+                var rect = button.getBoundingClientRect();
+                columnMenu.style.left = Math.max(4, Math.min(rect.left, window.innerWidth - columnMenu.offsetWidth - 4)) + "px";
+                columnMenu.style.top = Math.max(4, Math.min(rect.bottom + 2, window.innerHeight - columnMenu.offsetHeight - 4)) + "px";
+                input.focus();
+            }
+
+            document.addEventListener("click", function (event) {
+                if (!columnMenu.hidden && !columnMenu.contains(event.target) && !(activeButton && activeButton.contains(event.target))) closeColumnMenu();
+            });
+            document.addEventListener("keydown", function (event) {
+                if (event.key === "Escape" && !columnMenu.hidden) {
+                    var button = activeButton;
+                    closeColumnMenu();
+                    if (button) button.focus();
+                }
+            });
+            window.addEventListener("scroll", function (event) {
+                if (!columnMenu.contains(event.target)) closeColumnMenu();
+            }, true);
+
+            function rows() {
+                return Array.prototype.slice.call(table.querySelectorAll("tbody tr[data-quotation-id]"));
+            }
+
+            function visibleRows() {
+                return rows().filter(function (row) { return !row.hidden; });
+            }
+
+            function selectedRow() {
+                return rows().find(function (row) { return row.classList.contains("is-selected"); }) || null;
+            }
+
+            function setSelectedRow(row) {
+                rows().forEach(function (item) {
+                    var isSelected = item === row;
+                    item.classList.toggle("is-selected", isSelected);
+                    item.setAttribute("aria-selected", isSelected ? "true" : "false");
+                });
+
+                if (row) {
+                    row.scrollIntoView({ block: "nearest" });
+                }
+                updateStatus();
+                syncToolbarState();
+            }
+
+            function selectRow(row, loadDetail) {
+                setSelectedRow(row);
+                if (row && loadDetail) {
+                    loadSalesOrderDetail(row.dataset.quotationId);
+                }
+            }
+
+            function updateStatus(message) {
+                var visible = visibleRows();
+                var selected = selectedRow();
+                var index = selected ? visible.indexOf(selected) : -1;
+                status.textContent = message || (visible.length === 0
+                    ? "沒有符合條件的訂購單"
+                    : "共 " + visible.length + " 筆" + (index >= 0 ? "，目前第 " + (index + 1) + " 筆" : ""));
+            }
+
+            function syncToolbarState() {
+                var disabled = [];
+                var visible = visibleRows();
+                var selected = selectedRow();
+                var index = selected ? visible.indexOf(selected) : -1;
+
+                if (!selected) {
+                    disabled.push("delete", "copy", "edit", "first", "previous", "next", "last");
+                } else {
+                    if (selected.dataset.status !== "@SalesOrderStatuses.Confirmed") {
+                        disabled.push("delete", "edit");
+                    }
+                    if (index <= 0) {
+                        disabled.push("first", "previous");
+                    }
+                    if (index < 0 || index >= visible.length - 1) {
+                        disabled.push("next", "last");
+                    }
+                }
+
+                if (!search.value.trim()) {
+                    disabled.push("cancel");
+                }
+
+                toolbarTarget.dataset.toolbarDisabledActions = disabled.join(",");
+                document.dispatchEvent(new CustomEvent("smartims:toolbar-refresh"));
+            }
+
+            async function loadSalesOrderDetail(id) {
+                var requestVersion = ++detailRequestVersion;
+                detailContent.classList.add("is-loading");
+                detailContent.innerHTML =
+                    '<div class="quotation-detail-empty"><span>正在載入訂購單內容…</span></div>';
+
+                try {
+                    var response = await fetch(detailUrl + "?id=" + encodeURIComponent(id), {
+                        headers: { "X-Requested-With": "XMLHttpRequest" }
+                    });
+                    if (!response.ok) {
+                        throw new Error("load failed");
+                    }
+
+                    var html = await response.text();
+                    if (requestVersion !== detailRequestVersion) {
+                        return;
+                    }
+                    detailContent.innerHTML = html;
+                } catch (error) {
+                    if (requestVersion !== detailRequestVersion) {
+                        return;
+                    }
+                    detailContent.innerHTML =
+                        '<div class="quotation-detail-empty text-danger"><span>無法載入訂購單內容，請稍後再試。</span></div>';
+                } finally {
+                    if (requestVersion === detailRequestVersion) {
+                        detailContent.classList.remove("is-loading");
+                    }
+                }
+            }
+
+            function applyFilter() {
+                var keyword = search.value.trim().toLowerCase();
+                rows().forEach(function (row) {
+                    var text = (row.dataset.searchText || "").toLowerCase();
+                    var matchesColumns = Array.from(columnFilters).every(function (entry) {
+                        return row.cells[entry[0]].textContent.trim() === entry[1];
+                    });
+                    row.hidden = (keyword.length > 0 && text.indexOf(keyword) < 0) || !matchesColumns;
+                });
+
+                var selected = selectedRow();
+                if (!selected || selected.hidden) {
+                    selectRow(visibleRows()[0] || null, true);
+                    if (!selectedRow()) {
+                        ++detailRequestVersion;
+                        detailContent.classList.remove("is-loading");
+                        detailContent.innerHTML = '<div class="quotation-detail-empty"><span>沒有符合條件的訂購單</span></div>';
+                    }
+                } else {
+                    updateStatus();
+                }
+            }
+
+            function move(action) {
+                var visible = visibleRows();
+                if (visible.length === 0) {
+                    selectRow(null, false);
+                    return;
+                }
+
+                var index = visible.indexOf(selectedRow());
+                if (action === "first") index = 0;
+                if (action === "last") index = visible.length - 1;
+                if (action === "previous") index = Math.max(0, index <= 0 ? 0 : index - 1);
+                if (action === "next") index = Math.min(visible.length - 1, index < 0 ? 0 : index + 1);
+                selectRow(visible[index], true);
+            }
+
+            rows().forEach(function (row) {
+                row.addEventListener("click", function () {
+                    selectRow(row, true);
+                });
+                row.addEventListener("keydown", function (event) {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        selectRow(row, true);
+                    }
+                });
+            });
+
+            document.querySelector(".content-frame").addEventListener("smartims:toolbar-action", function (event) {
+                var action = event.detail.action;
+                var row = selectedRow();
+                if (action === "create") {
+                    event.preventDefault();
+                    window.location.href = createUrl;
+                } else if (action === "copy") {
+                    event.preventDefault();
+                    if (row) {
+                        window.location.href = copyUrlTemplate.replace("__id__", row.dataset.quotationId);
+                    }
+                } else if (action === "edit") {
+                    event.preventDefault();
+                    if (row) {
+                        window.location.href = editUrlTemplate.replace("__id__", row.dataset.quotationId);
+                    }
+                } else if (action === "delete") {
+                    event.preventDefault();
+                    if (!row || row.dataset.status !== "@SalesOrderStatuses.Confirmed") {
+                        updateStatus("只有「已確認」的訂購單可以作廢");
+                        return;
+                    }
+                    var form = detailContent.querySelector('form[action*="Void"]');
+                    if (form && confirm("確定要作廢這張訂購單嗎？")) {
+                        form.submit();
+                    }
+                } else if (action === "find") {
+                    event.preventDefault();
+                    search.focus();
+                    search.select();
+                } else if (action === "cancel") {
+                    event.preventDefault();
+                    search.value = "";
+                    applyFilter();
+                    syncToolbarState();
+                    search.focus();
+                } else if (["first", "previous", "next", "last"].indexOf(action) >= 0) {
+                    event.preventDefault();
+                    move(action);
+                }
+            });
+
+            search.addEventListener("input", function () {
+                applyFilter();
+                syncToolbarState();
+            });
+            if (!selectedRow()) {
+                selectRow(rows()[0] || null, true);
+            } else {
+                updateStatus();
+                syncToolbarState();
+            }
+        })();
+    </script>
+}
